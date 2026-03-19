@@ -1,0 +1,4 @@
+- [ ] implement hsv_to_rgb()
+- [ ] draw curves...
+- [ ] drop font-kit and pathfinder_geometry, instead bundle a font like noto sans and use fontdue(?)
+- [ ] drop pixels and switch to gpu rendering, probably very hard, reason is we are limited because cpu drawing is extremely slow, pixels is hardware accelerated only for the final part of the pixels.render(), everything else is just pure cpu, fractals will probably be impossible using only cpu.
