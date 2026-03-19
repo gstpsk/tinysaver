@@ -126,9 +126,7 @@ fn main() {
                     frame_count += 1;
 
                     // compute fps
-                    let time_end = std::time::Instant::now();
-                    let frame_time_ns = time_end - time_start;
-                    fps = (std::time::Duration::from_secs(1).as_nanos() as f64 / frame_time_ns.as_nanos() as f64) as u32;
+                    fps = (std::time::Duration::from_secs(1).as_nanos() as f64 / time_start.elapsed().as_nanos() as f64) as u32;
                 }
 
             }
