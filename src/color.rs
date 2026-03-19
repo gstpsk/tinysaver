@@ -22,7 +22,7 @@ pub fn rainbow_rgba(step: u32) -> (u8,u8,u8,u8) {
     }
 }
 
-pub fn hsv_to_rgb() {
+pub fn _hsv_to_rgb() {
     // to be implemented
     // allows us to map a range to the rgb values
     // so we could have 12 total steps, which would generate a very coarse rainbow

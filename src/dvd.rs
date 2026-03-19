@@ -36,14 +36,14 @@ impl DvdState {
         println!("initial dvd location x: {x}, y: {y}");
 
         Self {
-            x: x,
-            y: y,
-            img_data: img_data,
+            x,
+            y,
+            img_data,
             img_width: img_width as i32,
             img_height: img_height as i32,
             speed_x: initial_speed,
             speed_y: initial_speed,
-            surface_width: surface_width,
+            surface_width,
             surface_height         
         }
     }
@@ -72,7 +72,6 @@ pub fn dvd_style(frame: &mut [u8], frame_count: u32, dvd_state: &mut DvdState) {
 
     dvd_state.update_position();
 
-    let black: (u8,u8,u8,u8) = (0,0,0,0);
     let color = color::rainbow_rgba(frame_count);
     let rgb_color = (color.0, color.1, color.2);
     

@@ -1,6 +1,5 @@
 use font_kit::{canvas::{Canvas, Format, RasterizationOptions}, font::Font, hinting::HintingOptions};
 use pathfinder_geometry::{transform2d::Transform2F, vector::{Vector2F, Vector2I}};
-use pixels::wgpu::Color;
 
 use crate::color::color_image;
 

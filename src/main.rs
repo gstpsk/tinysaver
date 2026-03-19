@@ -56,7 +56,7 @@ fn main() {
         match event {
             Event::WindowEvent { event, .. } => match event {
                 WindowEvent::CloseRequested => *control_flow = ControlFlow::Exit,
-                WindowEvent::Resized(size) => {
+                WindowEvent::Resized(_) => {
                     // pixels
                     //     .resize_surface(size.width, size.height)
                     //     .expect("resized surface");
@@ -119,9 +119,6 @@ fn main() {
                     
                     let frame = pixels.frame_mut();
 
-                    let white = (255,255,255);
-                    let black = (0,0,0,0);
-
                     dvd::dvd_style(frame, frame_count, dvd_state);
                     draw_fps(frame, frame_count, fps, &font, window.inner_size().width as i32, window.inner_size().height as i32);
                                         
@@ -130,7 +127,7 @@ fn main() {
 
                     // compute fps
                     let time_end = std::time::Instant::now();
-                    let frame_time_ns = (time_end - time_start);
+                    let frame_time_ns = time_end - time_start;
                     fps = (std::time::Duration::from_secs(1).as_nanos() as f64 / frame_time_ns.as_nanos() as f64) as u32;
                 }
 

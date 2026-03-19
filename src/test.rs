@@ -6,9 +6,6 @@ mod tests {
 
     use crate::{color::rainbow_rgba, draw::set_pixel_at};
 
-    // Note this useful idiom: importing names from outer (for mod tests) scope.
-    use super::*;
-
     #[test]
     fn test_rainbow_rgba() {
         let black: (u8,u8,u8,u8) = (0,0,0,0);
