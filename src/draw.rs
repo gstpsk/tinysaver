@@ -79,7 +79,7 @@ pub fn draw_rect(
 
 fn try_compute_frame_index_from_position(frame: &mut [u8], x: i32, y: i32, surface_width: i32, surface_height: i32) -> Option<usize> {
     if x < 0 || y < 0 || x >= surface_width || y >= surface_height {
-        eprintln!("This is off screen mate");
+        eprintln!("This is off screen mate, got position ({x}, {y}) with screen size {surface_width}x{surface_height}");
         return None;
     }
 
