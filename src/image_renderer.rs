@@ -1,3 +1,5 @@
+use std::num::NonZeroUsize;
+
 use pixels::wgpu::{self, ImageCopyTexture, util::DeviceExt};
 
 // we use repr(C) to prevent Rust from messing with the memory layout
@@ -31,6 +33,12 @@ impl Vertex {
     }
 }
 
+#[repr(C)]
+#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct Transform {
+    pub offset: [f32; 2],
+}
+
 pub struct ImageRenderer {
     texture: wgpu::Texture,
     texture_view: wgpu::TextureView,
@@ -39,7 +47,8 @@ pub struct ImageRenderer {
     bind_group: wgpu::BindGroup,
     render_pipeline: wgpu::RenderPipeline,
     vertex_buffer: wgpu::Buffer,
-    index_buffer: wgpu::Buffer
+    index_buffer: wgpu::Buffer,
+    transform_buffer: wgpu::Buffer,
 }
 
 impl ImageRenderer {
@@ -55,9 +64,11 @@ impl ImageRenderer {
 
         let sampler = Self::create_sampler(device);
 
+        let transform_buffer = Self::create_transform_buffer(device);
+
         let bind_group_layout = Self::create_bind_group_layout(device);
         
-        let bind_group = Self::create_bind_group(device, &bind_group_layout, &texture_view, &sampler);
+        let bind_group = Self::create_bind_group(device, &bind_group_layout, &texture_view, &sampler, &transform_buffer);
         
         let render_pipeline_layout = Self::create_render_pipeline_layout(device, &bind_group_layout);
         
@@ -75,7 +86,8 @@ impl ImageRenderer {
             bind_group,
             render_pipeline,
             vertex_buffer,
-            index_buffer
+            index_buffer,
+            transform_buffer
         }
     }
 
@@ -102,6 +114,47 @@ impl ImageRenderer {
 
         // draw 6 indices
         render_pass.draw_indexed(0..6, 0, 0..1);
+    }
+
+    pub fn set_position(&self, queue: &wgpu::Queue, x: u32, y: u32, surface_width: u32, surface_height: u32) {
+        let (clip_x, clip_y) = Self::convert_abs_to_clip_space(x, y, surface_width, surface_height).expect("Converted absolute values to clip space");
+
+        let transform = Transform {
+            offset: [clip_x, clip_y],
+        };
+
+        // update the buffer with the new transform
+        queue.write_buffer(
+            &self.transform_buffer,
+            0,
+            bytemuck::bytes_of(&transform),
+        );       
+
+    }
+
+    fn create_transform_buffer(device: &wgpu::Device) -> wgpu::Buffer {
+        let initial_transform = Transform {
+            offset: [0.0, 0.0], // initalise at the top left corner
+        };
+
+        device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("initial transform buffer"),
+                contents: bytemuck::bytes_of(&initial_transform),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            }
+        )
+    }
+
+    fn convert_abs_to_clip_space(x: u32, y: u32, surface_width: u32, surface_height: u32) -> Option<(f32, f32)> {
+        if x >= surface_width || y >= surface_height {
+            return None;
+        }
+
+        let clip_x = (x as f32 / surface_width as f32) * 2.0 - 1.0;
+        let clip_y =  1.0 - (y as f32 / surface_height as f32) * 2.0;
+
+        Some((clip_x, clip_y))
     }
 
     fn create_texture_from_rgba8(
@@ -164,6 +217,7 @@ impl ImageRenderer {
     }
     
     fn create_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+        let min_binding_size = std::num::NonZeroU64::new(std::mem::size_of::<Transform>() as u64);
         device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("amazing label for a bind group layout"),
             entries: &[
@@ -184,12 +238,22 @@ impl ImageRenderer {
                         wgpu::SamplerBindingType::Filtering                                 // filtering sampler
                     ),
                     count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 2,
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size
+                    },
+                    count: None,
                 }
                 ],
             })
         }
         
-    fn create_bind_group(device: &wgpu::Device, bind_group_layout: &wgpu::BindGroupLayout, texture_view: &wgpu::TextureView, sampler: &wgpu::Sampler) -> wgpu::BindGroup {
+    fn create_bind_group(device: &wgpu::Device, bind_group_layout: &wgpu::BindGroupLayout, texture_view: &wgpu::TextureView, sampler: &wgpu::Sampler, transform_buffer: &wgpu::Buffer) -> wgpu::BindGroup {
         device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("epic bind group"),
             layout: bind_group_layout,
@@ -201,6 +265,10 @@ impl ImageRenderer {
                 wgpu::BindGroupEntry {
                     binding: 1,
                     resource: wgpu::BindingResource::Sampler(sampler)
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Buffer(transform_buffer.as_entire_buffer_binding())
                 }
             ],
         })
