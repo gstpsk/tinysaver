@@ -1,16 +1,11 @@
 use image::GenericImageView;
 
 // returns a random valid (x, y) pair
-pub fn get_random_position(surface_width: u32, surface_height: u32) -> (u32, u32) {
-    let mut result: (u32, u32) = (0 ,0);
-    
-    result.0 = rand::random::<u32>() % surface_width;
-    result.1 = rand::random::<u32>() % surface_height;
-
-    //result.0 = result.0.abs();
-    //result.1 = result.1.abs();
-
-    result
+pub fn get_random_position(max_x: i32, max_y: i32) -> (i32, i32) {
+    // use u32 to ensure non-negative numbers
+    let x = rand::random::<u32>() % (max_x as u32);
+    let y = rand::random::<u32>() % (max_y as u32);
+    (x as i32, y as i32)
 }
 
 pub fn load_image_rgba8(path: &str) -> (Vec<u8>, u32, u32) {
