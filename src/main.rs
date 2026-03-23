@@ -12,6 +12,8 @@ use winit::window::{Fullscreen, Window, WindowAttributes, WindowId};
 use font_kit::{family_name::FamilyName, font::Font, properties::Properties, source::SystemSource};
 use pixels::{Pixels, SurfaceTexture, wgpu::Backend};
 
+use crate::image_renderer::ImageRenderer;
+use crate::utils::load_image_rgba8;
 use crate::{dvd::DvdState, shader::SimpleShaderPass};
 
 mod color;
@@ -20,12 +22,14 @@ mod dvd;
 mod shader;
 mod test;
 mod utils;
+mod image_renderer;
 
 #[derive(Default)]
 struct App {
     window: Option<Arc<Window>>,
     pixels: Option<Pixels<'static>>,
     shader: Option<SimpleShaderPass>,
+    image_renderer: Option<ImageRenderer>,
     dvd_state: Option<DvdState>,
     font: Option<Font>, // from font-kit
     frame_count: u32,
@@ -68,7 +72,11 @@ impl ApplicationHandler for App {
 
         let shader = SimpleShaderPass::new(&pixels, size.width, size.height).unwrap();
 
+        let (image_data, image_width, image_height) = load_image_rgba8("arch25percent.png");
+        let image_renderer = ImageRenderer::new(pixels.device(), pixels.queue(), image_width, image_height, &image_data, pixels.render_texture_format(), size.width, size.height);
+
         self.pixels = Some(pixels);
+        self.image_renderer = Some(image_renderer);
         self.shader = Some(shader);
         self.dvd_state = Some(DvdState::with_random_position(
             1,
@@ -109,8 +117,8 @@ impl ApplicationHandler for App {
             }
 
             WindowEvent::RedrawRequested => {
-                let (Some(window), Some(pixels), Some(dvd_state), Some(shader)) =
-                    (&self.window, &mut self.pixels, &mut self.dvd_state, &mut self.shader)
+                let (Some(window), Some(pixels), Some(dvd_state), Some(image_renderer)) =
+                    (&self.window, &mut self.pixels, &mut self.dvd_state, &mut self.image_renderer)
                 else {
                     return;
                 };
@@ -136,17 +144,18 @@ impl ApplicationHandler for App {
                 
 
                 // Render
-                pixels.render();
-                /*
-                if let Err(err) = pixels.render_with(|encoder, target, _context| {
+                //pixels.render();
+                
+                if let Err(err) = pixels.render_with(|encoder, render_target, _context| {
                     //shader.render(encoder, target, pixels);
+                    image_renderer.render(encoder, render_target);
                     Ok(())
                 }) {
                     eprintln!("pixels.render_with failed: {err}");
                     event_loop.exit();
                     return;
                 }
-                    */
+                
                 self.frame_count += 1;
 
                 // Compute FPS
