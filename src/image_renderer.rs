@@ -1,5 +1,3 @@
-use std::num::NonZeroUsize;
-
 use pixels::wgpu::{self, ImageCopyTexture, util::DeviceExt};
 
 // we use repr(C) to prevent Rust from messing with the memory layout
@@ -39,6 +37,12 @@ pub struct Transform {
     pub offset: [f32; 2],
 }
 
+#[repr(C)]
+#[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
+pub struct Tint {
+    pub color: [f32; 4],
+}
+
 pub struct ImageRenderer {
     texture: wgpu::Texture,
     texture_view: wgpu::TextureView,
@@ -50,6 +54,7 @@ pub struct ImageRenderer {
     index_buffer: wgpu::Buffer,
     transform_buffer: wgpu::Buffer,
     projection_matrix_buffer: wgpu::Buffer,
+    tint_color_buffer: wgpu::Buffer,
     surface_width: u32,
     surface_height: u32
 }
@@ -71,9 +76,11 @@ impl ImageRenderer {
 
         let projection_matrix_buffer = Self::create_projection_matrix_buffer(device, surface_width, surface_height);
 
+        let tint_color_buffer = Self::create_tint_color_buffer(device);
+
         let bind_group_layout = Self::create_bind_group_layout(device);
         
-        let bind_group = Self::create_bind_group(device, &bind_group_layout, &texture_view, &sampler, &transform_buffer, &projection_matrix_buffer);
+        let bind_group = Self::create_bind_group(device, &bind_group_layout, &texture_view, &sampler, &transform_buffer, &projection_matrix_buffer, &tint_color_buffer);
         
         let render_pipeline_layout = Self::create_render_pipeline_layout(device, &bind_group_layout);
         
@@ -94,6 +101,7 @@ impl ImageRenderer {
             index_buffer,
             transform_buffer,
             projection_matrix_buffer,
+            tint_color_buffer,
             surface_width,
             surface_height
         }
@@ -134,6 +142,15 @@ impl ImageRenderer {
             0,
             bytemuck::bytes_of(&transform),
         );
+    }
+
+    pub fn set_tint_color(&self, queue: &wgpu::Queue, rgba: (u8, u8, u8, u8)) {
+        // normalised and convert to float
+        let tint_color_normalised = Tint {
+            color: [rgba.0 as f32 / 255.0, rgba.1 as f32 / 255.0, rgba.2 as f32 / 255.0, rgba.3 as f32 / 255.0],
+        };
+
+        queue.write_buffer(&self.tint_color_buffer, 0, bytemuck::bytes_of(&tint_color_normalised));
     }
 
     fn create_texture_from_rgba8(
@@ -198,6 +215,8 @@ impl ImageRenderer {
     fn create_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
         let transform_binding_size = std::num::NonZeroU64::new(std::mem::size_of::<Transform>() as u64);
         let projection_matrix_binding_size = std::num::NonZeroU64::new(64); // 4x4 floats = 64 bytes
+        let tint_color_binding_size = std::num::NonZeroU64::new(std::mem::size_of::<Tint>() as u64); // 4 floats = 16 bytes
+
         device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("amazing label for a bind group layout"),
             entries: &[
@@ -238,12 +257,22 @@ impl ImageRenderer {
                         min_binding_size: projection_matrix_binding_size
                     },
                     count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 4,                                                             // tint color
+                    visibility: wgpu::ShaderStages::FRAGMENT,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: tint_color_binding_size
+                    },
+                    count: None,
                 }
                 ],
             })
         }
         
-    fn create_bind_group(device: &wgpu::Device, bind_group_layout: &wgpu::BindGroupLayout, texture_view: &wgpu::TextureView, sampler: &wgpu::Sampler, transform_buffer: &wgpu::Buffer, projection_matrix_buffer: &wgpu::Buffer) -> wgpu::BindGroup {
+    fn create_bind_group(device: &wgpu::Device, bind_group_layout: &wgpu::BindGroupLayout, texture_view: &wgpu::TextureView, sampler: &wgpu::Sampler, transform_buffer: &wgpu::Buffer, projection_matrix_buffer: &wgpu::Buffer, tint_color_buffer: &wgpu::Buffer) -> wgpu::BindGroup {
         device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("epic bind group"),
             layout: bind_group_layout,
@@ -263,6 +292,10 @@ impl ImageRenderer {
                 wgpu::BindGroupEntry {
                     binding: 3,
                     resource: wgpu::BindingResource::Buffer(projection_matrix_buffer.as_entire_buffer_binding())
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::Buffer(tint_color_buffer.as_entire_buffer_binding())
                 }
             ],
         })
@@ -350,6 +383,18 @@ impl ImageRenderer {
             &wgpu::util::BufferInitDescriptor {
                 label: Some("initial transform buffer"),
                 contents: bytemuck::bytes_of(&initial_transform),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            }
+        )
+    }
+
+    fn create_tint_color_buffer(device: &wgpu::Device) -> wgpu::Buffer {
+        let neutral_tint = Tint { color: [1.0, 1.0, 1.0, 1.0] }; // multiply by 1 so no effect on RGBA values
+
+        device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("neutral tint color buffer"),
+                contents: bytemuck::bytes_of(&neutral_tint),
                 usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
             }
         )

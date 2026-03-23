@@ -10,6 +10,9 @@ var<uniform> transform: Transform;
 @group(0) @binding(3)
 var<uniform> projection: Projection;
 
+@group(0) @binding(4)
+var<uniform> tint: Tint;
+
 // passed by the vertex shader to the rasterizer
 // which then passes it on to the fragment shader.
 // important to understand is that it is not really
@@ -33,7 +36,11 @@ struct Transform {
 // to clip space coordinates
 struct Projection {
     matrix: mat4x4<f32>
-}
+};
+
+struct Tint {
+    color: vec4<f32>
+};
 
 @vertex
 fn vs_main(@location(0) in_position: vec2<f32>, @location(1) in_uv: vec2<f32>) -> VsOut {
@@ -59,5 +66,7 @@ fn vs_main(@location(0) in_position: vec2<f32>, @location(1) in_uv: vec2<f32>) -
 // output: an vertex containing the final rgba data drawn to the screen 
 @fragment
 fn fs_main(@location(0) in_uv: vec2<f32>) -> @location(0) vec4<f32> {
-    return textureSample(image_texture, image_sampler, in_uv);
+    let fragment = textureSample(image_texture, image_sampler, in_uv);
+    let tinted_fragment = fragment * tint.color;
+    return tinted_fragment;
 }
