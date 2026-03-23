@@ -182,8 +182,6 @@ impl SimpleShaderPass {
         rpass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
         rpass.draw(0..3, 0..1);
     }
-
-    
 }
 
 // create a new GPU texture
