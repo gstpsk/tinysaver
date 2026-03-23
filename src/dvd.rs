@@ -30,7 +30,7 @@ pub struct DvdState {
 
 impl DvdState {
     pub fn with_random_position(initial_speed: i8, surface_width: i32, surface_height: i32) -> Self {
-        let (img_data, img_width, img_height) = utils::load_image_rgba("arch25percent.png");
+        let (img_data, img_width, img_height) = utils::load_image_rgba8("arch25percent.png");
         let (x, y) = utils::get_random_position(surface_width - (img_width as i32), surface_height - (img_height as i32));
         
         println!("initial dvd location x: {x}, y: {y}");

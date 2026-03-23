@@ -13,7 +13,7 @@ pub fn get_random_position(surface_width: i32, surface_height: i32) -> (i32, i32
     result
 }
 
-pub fn load_image_rgba(path: &str) -> (Vec<u8>, u32, u32) {
+pub fn load_image_rgba8(path: &str) -> (Vec<u8>, u32, u32) {
     let img = image::open(path).expect("Failed to load image");
     let rgba = img.to_rgba8();
     let (width, height) = img.dimensions();
