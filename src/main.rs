@@ -12,25 +12,27 @@ use winit::window::{Fullscreen, Window, WindowAttributes, WindowId};
 use font_kit::{family_name::FamilyName, font::Font, properties::Properties, source::SystemSource};
 use pixels::{Pixels, SurfaceTexture, wgpu::Backend};
 
+use crate::dvd_bounce::DvdBounceAnimation;
 use crate::image_renderer::ImageRenderer;
 use crate::utils::load_image_rgba8;
-use crate::{dvd::DvdState, shader::SimpleShaderPass};
+//use crate::{dvd::DvdState, shader::SimpleShaderPass};
 
 mod color;
 mod draw;
-mod dvd;
+//mod dvd;
 mod shader;
 mod test;
 mod utils;
 mod image_renderer;
+mod dvd_bounce;
 
 #[derive(Default)]
 struct App {
     window: Option<Arc<Window>>,
     pixels: Option<Pixels<'static>>,
-    shader: Option<SimpleShaderPass>,
-    image_renderer: Option<ImageRenderer>,
-    dvd_state: Option<DvdState>,
+    //shader: Option<SimpleShaderPass>,
+    dvd_bounce_animation: Option<DvdBounceAnimation>,
+    //dvd_state: Option<DvdState>,
     font: Option<Font>, // from font-kit
     frame_count: u32,
     fps: u32,
@@ -70,19 +72,14 @@ impl ApplicationHandler for App {
 
         pixels.enable_vsync(false);
 
-        let shader = SimpleShaderPass::new(&pixels, size.width, size.height).unwrap();
+        //let shader = SimpleShaderPass::new(&pixels, size.width, size.height).unwrap();
 
         let (image_data, image_width, image_height) = load_image_rgba8("arch25percent.png");
-        let image_renderer = ImageRenderer::new(pixels.device(), pixels.queue(), image_width, image_height, &image_data, pixels.render_texture_format(), size.width, size.height);
+        //let image_renderer = ImageRenderer::new(pixels.device(), pixels.queue(), image_width, image_height, &image_data, pixels.render_texture_format(), size.width, size.height);
+        let dvd_bounce_animation = DvdBounceAnimation::new(pixels.device(), pixels.queue(), &image_data, image_width as i32, image_height as i32, pixels.render_texture_format(), size.width as i32, size.height as i32);
 
         self.pixels = Some(pixels);
-        self.image_renderer = Some(image_renderer);
-        self.shader = Some(shader);
-        self.dvd_state = Some(DvdState::with_random_position(
-            1,
-            size.width as i32,
-            size.height as i32,
-        ));
+        self.dvd_bounce_animation = Some(dvd_bounce_animation)
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
@@ -93,14 +90,14 @@ impl ApplicationHandler for App {
                 Key::Character(ref s) if s == "q" => event_loop.exit(),
 
                 Key::Named(NamedKey::ArrowUp) => {
-                    if let Some(state) = &mut self.dvd_state {
-                        state.increase_speed_by(1);
+                    if let Some(animation) = &mut self.dvd_bounce_animation {
+                        animation.increase_speed_by(1);
                     }
                 }
 
                 Key::Named(NamedKey::ArrowDown) => {
-                    if let Some(state) = &mut self.dvd_state {
-                        state.decrease_speed_by(1);
+                    if let Some(animation) = &mut self.dvd_bounce_animation {
+                        animation.decrease_speed_by(1);
                     }
                 }
 
@@ -117,8 +114,8 @@ impl ApplicationHandler for App {
             }
 
             WindowEvent::RedrawRequested => {
-                let (Some(window), Some(pixels), Some(dvd_state), Some(image_renderer)) =
-                    (&self.window, &mut self.pixels, &mut self.dvd_state, &mut self.image_renderer)
+                let (Some(window), Some(pixels), Some(dvd_bounce_animation)) =
+                    (&self.window, &mut self.pixels, &mut self.dvd_bounce_animation)
                 else {
                     return;
                 };
@@ -128,27 +125,34 @@ impl ApplicationHandler for App {
                 let frame = pixels.frame_mut();
 
                 // Draw FPS
-                if let Some(font) = &self.font {
-                    draw_fps(
-                        frame,
-                        self.frame_count,
-                        self.fps,
-                        font,
-                        window.inner_size().width as i32,
-                        window.inner_size().height as i32,
-                    );
+                // if let Some(font) = &self.font {
+                //     draw_fps(
+                //         frame,
+                //         self.frame_count,
+                //         self.fps,
+                //         font,
+                //         window.inner_size().width as i32,
+                //         window.inner_size().height as i32,
+                //     );
+                // }
+
+                if self.frame_count % 200 == 0 {
+                    println!("FPS: {}", self.fps);
                 }
 
-                dvd::dvd_style(frame, self.frame_count, dvd_state);
+                //dvd::dvd_style(frame, self.frame_count, dvd_state);
 
                 
 
                 // Render
                 //pixels.render();
+
+                dvd_bounce_animation.update(pixels.queue());
                 
                 if let Err(err) = pixels.render_with(|encoder, render_target, _context| {
                     //shader.render(encoder, target, pixels);
-                    image_renderer.render(encoder, render_target);
+                    //image_renderer.render(encoder, render_target);
+                    dvd_bounce_animation.render(encoder, render_target);
                     Ok(())
                 }) {
                     eprintln!("pixels.render_with failed: {err}");
