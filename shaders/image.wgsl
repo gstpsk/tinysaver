@@ -4,6 +4,12 @@ var image_texture: texture_2d<f32>;
 @group(0) @binding(1)
 var image_sampler: sampler;
 
+@group(0) @binding(2)
+var<uniform> transform: Transform;
+
+@group(0) @binding(3)
+var<uniform> projection: Projection;
+
 // passed by the vertex shader to the rasterizer
 // which then passes it on to the fragment shader.
 // important to understand is that it is not really
@@ -16,13 +22,30 @@ struct VsOut {
     @location(0) uv: vec2<f32>          // interpolated value of where in the texture the pixel data should come from (texture coordinate): (0, 0) is top left
 };
 
+// contains transform data
+// could later add scale
+// and rotation
+struct Transform {
+    offset: vec2<f32>
+};
+
+// used to convert pixel coordinates
+// to clip space coordinates
+struct Projection {
+    matrix: mat4x4<f32>
+}
+
 @vertex
 fn vs_main(@location(0) in_position: vec2<f32>, @location(1) in_uv: vec2<f32>) -> VsOut {
     // define return struct
     // prevents wgsl-analyzer from complaining...
     var out: VsOut;
+
+    // apply translation, still in pixels
+    let new_position = in_position + transform.offset;
     
-    let clip_space_position = vec4<f32>(in_position, 0.0, 1.0); // convert 2D coordinate to clip space
+    // now we use the projection matrix to convert from pixel to clip space
+    let clip_space_position = projection.matrix * vec4<f32>(new_position, 0.0, 1.0);
 
     out.pos = clip_space_position;
     out.uv = in_uv;

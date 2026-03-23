@@ -49,6 +49,9 @@ pub struct ImageRenderer {
     vertex_buffer: wgpu::Buffer,
     index_buffer: wgpu::Buffer,
     transform_buffer: wgpu::Buffer,
+    projection_matrix_buffer: wgpu::Buffer,
+    surface_width: u32,
+    surface_height: u32
 }
 
 impl ImageRenderer {
@@ -57,24 +60,26 @@ impl ImageRenderer {
             label: Some("image renderer shader module"),
             source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/image.wgsl").into()),
         });
-
+        
         let texture = Self::create_texture_from_rgba8(device, queue, width, height, rgba_data);
-
+        
         let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
         let sampler = Self::create_sampler(device);
 
         let transform_buffer = Self::create_transform_buffer(device);
 
+        let projection_matrix_buffer = Self::create_projection_matrix_buffer(device, surface_width, surface_height);
+
         let bind_group_layout = Self::create_bind_group_layout(device);
         
-        let bind_group = Self::create_bind_group(device, &bind_group_layout, &texture_view, &sampler, &transform_buffer);
+        let bind_group = Self::create_bind_group(device, &bind_group_layout, &texture_view, &sampler, &transform_buffer, &projection_matrix_buffer);
         
         let render_pipeline_layout = Self::create_render_pipeline_layout(device, &bind_group_layout);
         
         let render_pipeline = Self::create_render_pipeline(device, &render_pipeline_layout, &shader, surface_format);
 
-        let vertex_buffer = Self::create_vertex_buffer(device, width, height, surface_width, surface_height);
+        let vertex_buffer = Self::create_vertex_buffer(device, width, height);
 
         let index_buffer = Self::create_index_buffer(device);
 
@@ -87,7 +92,10 @@ impl ImageRenderer {
             render_pipeline,
             vertex_buffer,
             index_buffer,
-            transform_buffer
+            transform_buffer,
+            projection_matrix_buffer,
+            surface_width,
+            surface_height
         }
     }
 
@@ -116,45 +124,16 @@ impl ImageRenderer {
         render_pass.draw_indexed(0..6, 0, 0..1);
     }
 
-    pub fn set_position(&self, queue: &wgpu::Queue, x: u32, y: u32, surface_width: u32, surface_height: u32) {
-        let (clip_x, clip_y) = Self::convert_abs_to_clip_space(x, y, surface_width, surface_height).expect("Converted absolute values to clip space");
-
+    pub fn set_position(&self, queue: &wgpu::Queue, x: u32, y: u32) {
         let transform = Transform {
-            offset: [clip_x, clip_y],
+            offset: [x as f32, y as f32], // pixel coordinates directly
         };
 
-        // update the buffer with the new transform
         queue.write_buffer(
             &self.transform_buffer,
             0,
             bytemuck::bytes_of(&transform),
-        );       
-
-    }
-
-    fn create_transform_buffer(device: &wgpu::Device) -> wgpu::Buffer {
-        let initial_transform = Transform {
-            offset: [0.0, 0.0], // initalise at the top left corner
-        };
-
-        device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("initial transform buffer"),
-                contents: bytemuck::bytes_of(&initial_transform),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            }
-        )
-    }
-
-    fn convert_abs_to_clip_space(x: u32, y: u32, surface_width: u32, surface_height: u32) -> Option<(f32, f32)> {
-        if x >= surface_width || y >= surface_height {
-            return None;
-        }
-
-        let clip_x = (x as f32 / surface_width as f32) * 2.0 - 1.0;
-        let clip_y =  1.0 - (y as f32 / surface_height as f32) * 2.0;
-
-        Some((clip_x, clip_y))
+        );
     }
 
     fn create_texture_from_rgba8(
@@ -217,7 +196,8 @@ impl ImageRenderer {
     }
     
     fn create_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
-        let min_binding_size = std::num::NonZeroU64::new(std::mem::size_of::<Transform>() as u64);
+        let transform_binding_size = std::num::NonZeroU64::new(std::mem::size_of::<Transform>() as u64);
+        let projection_matrix_binding_size = std::num::NonZeroU64::new(64); // 4x4 floats = 64 bytes
         device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("amazing label for a bind group layout"),
             entries: &[
@@ -240,12 +220,22 @@ impl ImageRenderer {
                     count: None,
                 },
                 wgpu::BindGroupLayoutEntry {
-                    binding: 2,
+                    binding: 2,                                                             // transformations
                     visibility: wgpu::ShaderStages::VERTEX,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size
+                        min_binding_size: transform_binding_size
+                    },
+                    count: None,
+                },
+                wgpu::BindGroupLayoutEntry {
+                    binding: 3,                                                             // projection matrix
+                    visibility: wgpu::ShaderStages::VERTEX,
+                    ty: wgpu::BindingType::Buffer {
+                        ty: wgpu::BufferBindingType::Uniform,
+                        has_dynamic_offset: false,
+                        min_binding_size: projection_matrix_binding_size
                     },
                     count: None,
                 }
@@ -253,7 +243,7 @@ impl ImageRenderer {
             })
         }
         
-    fn create_bind_group(device: &wgpu::Device, bind_group_layout: &wgpu::BindGroupLayout, texture_view: &wgpu::TextureView, sampler: &wgpu::Sampler, transform_buffer: &wgpu::Buffer) -> wgpu::BindGroup {
+    fn create_bind_group(device: &wgpu::Device, bind_group_layout: &wgpu::BindGroupLayout, texture_view: &wgpu::TextureView, sampler: &wgpu::Sampler, transform_buffer: &wgpu::Buffer, projection_matrix_buffer: &wgpu::Buffer) -> wgpu::BindGroup {
         device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("epic bind group"),
             layout: bind_group_layout,
@@ -269,6 +259,10 @@ impl ImageRenderer {
                 wgpu::BindGroupEntry {
                     binding: 2,
                     resource: wgpu::BindingResource::Buffer(transform_buffer.as_entire_buffer_binding())
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::Buffer(projection_matrix_buffer.as_entire_buffer_binding())
                 }
             ],
         })
@@ -315,17 +309,15 @@ impl ImageRenderer {
         })
     }
 
-    fn create_vertex_buffer(device: &wgpu::Device, width: u32, height: u32, surface_width: u32, surface_height: u32) -> wgpu::Buffer {
-
-        let right_x = -1.0 + (width as f32 / surface_width as f32) * 2.0;
-        let bottom_y = 1.0 - (height as f32 / surface_height as f32) * 2.0;
-
+    fn create_vertex_buffer(device: &wgpu::Device, width: u32, height: u32) -> wgpu::Buffer {        
         // create the quad to load the image texture into
+        // and place the top left corner of the quad at the centre of the screen
+        // use pixels first, then convert to clip space in the shader
         let vertices = [
-            Vertex { position: [-1.0,  1.0], uv: [0.0, 0.0] }, // top left
-            Vertex { position: [ right_x,  1.0], uv: [1.0, 0.0] }, // top right
-            Vertex { position: [-1.0, bottom_y], uv: [0.0, 1.0] }, // bottom left
-            Vertex { position: [ right_x, bottom_y], uv: [1.0, 1.0] }, // bottom right
+            Vertex { position: [0.0, 0.0], uv: [0.0, 0.0] },                       // top left
+            Vertex { position: [width as f32, 0.0], uv: [1.0, 0.0] },              // top right
+            Vertex { position: [0.0, height as f32], uv: [0.0, 1.0] },             // bottom left
+            Vertex { position: [width as f32, height as f32], uv: [1.0, 1.0] },    // bottom right
         ];
 
         device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -349,4 +341,41 @@ impl ImageRenderer {
         })
     }
 
+    fn create_transform_buffer(device: &wgpu::Device) -> wgpu::Buffer {
+        let initial_transform = Transform {
+            offset: [0.0, 0.0], // initalise at the top left corner
+        };
+
+        device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("initial transform buffer"),
+                contents: bytemuck::bytes_of(&initial_transform),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            }
+        )
+    }
+
+    fn create_projection_matrix_buffer(device: &wgpu::Device, surface_width: u32, surface_height: u32) -> wgpu::Buffer {
+        let w = surface_width as f32;
+        let h = surface_height as f32;
+        let projection_matrix: [[f32; 4]; 4] = [
+            // column 0
+            [ 2.0 / w, 0.0,      0.0, 0.0 ],
+            // column 1
+            [ 0.0,    -2.0 / h,  0.0, 0.0 ],
+            // column 2
+            [ 0.0,     0.0,      1.0, 0.0 ],
+            // column 3
+            [ -1.0,    1.0,      0.0, 1.0 ],
+        ];
+
+
+        device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("initial transform buffer"),
+                contents: bytemuck::bytes_of(&projection_matrix),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            }
+        )
+    }
 }
