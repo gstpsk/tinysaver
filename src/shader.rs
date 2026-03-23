@@ -1,4 +1,7 @@
-use pixels::{TextureError, wgpu::{self, util::DeviceExt}};
+use pixels::{
+    TextureError,
+    wgpu::{self, util::DeviceExt},
+};
 
 pub struct SimpleShaderPass {
     pipeline: wgpu::RenderPipeline,
