@@ -10,4 +10,4 @@ image = "0.25.10"
 rand = "0.10.0"
 font-kit = "0.14.3"
 pathfinder_geometry = "0.5.1"
-bytemuck = "1.25.0"
+bytemuck = { version = "1.14", features = ["derive"] }
