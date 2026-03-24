@@ -1,11 +1,13 @@
 use pixels::wgpu::{self, ImageCopyTexture, util::DeviceExt};
 
+use crate::drawable::Drawable;
+
 // we use repr(C) to prevent Rust from messing with the memory layout
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
-struct Vertex {
-    position: [f32; 2],
-    uv: [f32; 2],
+pub struct Vertex {
+    pub position: [f32; 2],
+    pub uv: [f32; 2],
 }
 
 impl Vertex {
@@ -18,13 +20,13 @@ impl Vertex {
                 wgpu::VertexAttribute {
                     offset: 0,
                     shader_location: 0,
-                    format: wgpu::VertexFormat::Float32x3,
+                    format: wgpu::VertexFormat::Float32x2,
                 },
                 // @location(1) uv: vec2<f32>
                 wgpu::VertexAttribute {
                     offset: std::mem::size_of::<[f32; 2]>() as wgpu::BufferAddress,
                     shader_location: 1,
-                    format: wgpu::VertexFormat::Float32x3,
+                    format: wgpu::VertexFormat::Float32x2,
                 }
             ]
         }
@@ -43,71 +45,43 @@ pub struct Tint {
     pub color: [f32; 4],
 }
 
-pub struct ImageRenderer {
-    texture: wgpu::Texture,
-    texture_view: wgpu::TextureView,
-    sampler: wgpu::Sampler,
-    bind_group_layout: wgpu::BindGroupLayout,
-    bind_group: wgpu::BindGroup,
+pub struct Renderer2D {
+    pub sampler: wgpu::Sampler,
+    pub bind_group_layout: wgpu::BindGroupLayout,
     render_pipeline: wgpu::RenderPipeline,
-    vertex_buffer: wgpu::Buffer,
-    index_buffer: wgpu::Buffer,
-    transform_buffer: wgpu::Buffer,
-    projection_matrix_buffer: wgpu::Buffer,
-    tint_color_buffer: wgpu::Buffer,
-    surface_width: u32,
-    surface_height: u32
+    pub projection_matrix_buffer: wgpu::Buffer,
+    pub surface_width: u32,
+    pub surface_height: u32
 }
 
-impl ImageRenderer {
-    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, width: u32, height: u32, rgba_data: &[u8], surface_format: wgpu::TextureFormat, surface_width: u32, surface_height: u32) -> Self {
+impl Renderer2D {
+    pub fn new(device: &wgpu::Device, surface_format: wgpu::TextureFormat, surface_width: u32, surface_height: u32) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("image renderer shader module"),
             source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/image.wgsl").into()),
         });
-        
-        let texture = Self::create_texture_from_rgba8(device, queue, width, height, rgba_data);
-        
-        let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
         let sampler = Self::create_sampler(device);
 
-        let transform_buffer = Self::create_transform_buffer(device);
-
         let projection_matrix_buffer = Self::create_projection_matrix_buffer(device, surface_width, surface_height);
 
-        let tint_color_buffer = Self::create_tint_color_buffer(device);
-
         let bind_group_layout = Self::create_bind_group_layout(device);
-        
-        let bind_group = Self::create_bind_group(device, &bind_group_layout, &texture_view, &sampler, &transform_buffer, &projection_matrix_buffer, &tint_color_buffer);
-        
+                
         let render_pipeline_layout = Self::create_render_pipeline_layout(device, &bind_group_layout);
         
         let render_pipeline = Self::create_render_pipeline(device, &render_pipeline_layout, &shader, surface_format);
 
-        let vertex_buffer = Self::create_vertex_buffer(device, width, height);
-
-        let index_buffer = Self::create_index_buffer(device);
-
         Self {
-            texture,
-            texture_view,
             sampler,
             bind_group_layout,
-            bind_group,
             render_pipeline,
-            vertex_buffer,
-            index_buffer,
-            transform_buffer,
             projection_matrix_buffer,
-            tint_color_buffer,
             surface_width,
             surface_height
         }
     }
 
-    pub fn render(&self, encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView) {
+    pub fn render(&self, encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView, drawable: &impl Drawable) {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("image renderer pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -124,75 +98,8 @@ impl ImageRenderer {
         });
 
         render_pass.set_pipeline(&self.render_pipeline);
-        render_pass.set_bind_group(0, &self.bind_group, &[]);
-        render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
-        render_pass.set_index_buffer(self.index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-
-        // draw 6 indices
-        render_pass.draw_indexed(0..6, 0, 0..1);
-    }
-
-    pub fn set_position(&self, queue: &wgpu::Queue, x: u32, y: u32) {
-        let transform = Transform {
-            offset: [x as f32, y as f32], // pixel coordinates directly
-        };
-
-        queue.write_buffer(
-            &self.transform_buffer,
-            0,
-            bytemuck::bytes_of(&transform),
-        );
-    }
-
-    pub fn set_tint_color(&self, queue: &wgpu::Queue, rgba: (u8, u8, u8, u8)) {
-        // normalised and convert to float
-        let tint_color_normalised = Tint {
-            color: [rgba.0 as f32 / 255.0, rgba.1 as f32 / 255.0, rgba.2 as f32 / 255.0, rgba.3 as f32 / 255.0],
-        };
-
-        queue.write_buffer(&self.tint_color_buffer, 0, bytemuck::bytes_of(&tint_color_normalised));
-    }
-
-    fn create_texture_from_rgba8(
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        width: u32,
-        height: u32,
-        data: &[u8],
-    ) -> wgpu::Texture {
-        let texture = device.create_texture(&wgpu::TextureDescriptor {
-            label: Some("Image texture, why are there labels lol"),
-            size: wgpu::Extent3d {
-                // speaks for itself
-                width,
-                height,
-                depth_or_array_layers: 1,
-            },
-            mip_level_count: 1,                    // we only have 1 version
-            sample_count: 1,                       // used for msaa apparently?
-            dimension: wgpu::TextureDimension::D2, // 2 dimensions because images live in 2D
-            format: wgpu::TextureFormat::Rgba8UnormSrgb,
-            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST, // texture binding means we can use it in the shader, copy_dst means we can copy something to it (write into it)
-            view_formats: &[], // not needed...
-        });
-
-        queue.write_texture(
-            ImageCopyTexture { 
-                texture: &texture,                  // write to our newly created texture
-                mip_level: 0,                       // write to the first mip level (we only have one)
-                origin: wgpu::Origin3d::ZERO,       // begin writing at the start of texture
-                aspect: wgpu::TextureAspect::All    // copy everything
-            },
-            data, 
-            wgpu::ImageDataLayout {
-                offset: 0,                          // start reading from the buffer at the begining
-                bytes_per_row: Some(width * 4),     // each RGBA block is 4 bytes
-                rows_per_image: Some(height),               
-            }, 
-            texture.size()        
-        );
-
-        texture
+        drawable.bind(&mut render_pass);
+        drawable.draw(&mut render_pass);
     }
     
     fn create_sampler(device: &wgpu::Device) -> wgpu::Sampler {
@@ -270,35 +177,6 @@ impl ImageRenderer {
                 }
                 ],
             })
-        }
-        
-    fn create_bind_group(device: &wgpu::Device, bind_group_layout: &wgpu::BindGroupLayout, texture_view: &wgpu::TextureView, sampler: &wgpu::Sampler, transform_buffer: &wgpu::Buffer, projection_matrix_buffer: &wgpu::Buffer, tint_color_buffer: &wgpu::Buffer) -> wgpu::BindGroup {
-        device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("epic bind group"),
-            layout: bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(texture_view)
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(sampler)
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: wgpu::BindingResource::Buffer(transform_buffer.as_entire_buffer_binding())
-                },
-                wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: wgpu::BindingResource::Buffer(projection_matrix_buffer.as_entire_buffer_binding())
-                },
-                wgpu::BindGroupEntry {
-                    binding: 4,
-                    resource: wgpu::BindingResource::Buffer(tint_color_buffer.as_entire_buffer_binding())
-                }
-            ],
-        })
     }
 
     fn create_render_pipeline_layout(device: &wgpu::Device, bind_group_layout: &wgpu::BindGroupLayout) -> wgpu::PipelineLayout {
@@ -342,39 +220,7 @@ impl ImageRenderer {
         })
     }
 
-    fn create_vertex_buffer(device: &wgpu::Device, width: u32, height: u32) -> wgpu::Buffer {        
-        // create the quad to load the image texture into
-        // and place the top left corner of the quad at the centre of the screen
-        // use pixels first, then convert to clip space in the shader
-        let vertices = [
-            Vertex { position: [0.0, 0.0], uv: [0.0, 0.0] },                       // top left
-            Vertex { position: [width as f32, 0.0], uv: [1.0, 0.0] },              // top right
-            Vertex { position: [0.0, height as f32], uv: [0.0, 1.0] },             // bottom left
-            Vertex { position: [width as f32, height as f32], uv: [1.0, 1.0] },    // bottom right
-        ];
-
-        device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("epic vertex buffer containg a quad"),
-            contents: bytemuck::cast_slice(&vertices),
-            usage: wgpu::BufferUsages::VERTEX,
-        })
-    }
-
-    fn create_index_buffer(device: &wgpu::Device) -> wgpu::Buffer {
-        // two triangles make a quad
-        let indices: [u16; 6] = [
-            0, 1, 2,   // first triangle
-            2, 1, 3,   // second triangle
-        ];
-
-        device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
-            label: Some("image renderer index buffer"),
-            contents: bytemuck::cast_slice(&indices),
-            usage: wgpu::BufferUsages::INDEX,
-        })
-    }
-
-    fn create_transform_buffer(device: &wgpu::Device) -> wgpu::Buffer {
+    pub fn create_transform_buffer(device: &wgpu::Device) -> wgpu::Buffer {
         let initial_transform = Transform {
             offset: [0.0, 0.0], // initalise at the top left corner
         };
@@ -388,7 +234,7 @@ impl ImageRenderer {
         )
     }
 
-    fn create_tint_color_buffer(device: &wgpu::Device) -> wgpu::Buffer {
+    pub fn create_tint_color_buffer(device: &wgpu::Device) -> wgpu::Buffer {
         let neutral_tint = Tint { color: [1.0, 1.0, 1.0, 1.0] }; // multiply by 1 so no effect on RGBA values
 
         device.create_buffer_init(
