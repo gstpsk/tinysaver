@@ -13,7 +13,6 @@ use font_kit::{family_name::FamilyName, font::Font, properties::Properties, sour
 use pixels::{Pixels, SurfaceTexture, wgpu::Backend};
 
 use crate::dvd_bounce::DvdBounceAnimation;
-use crate::image_renderer::ImageRenderer;
 use crate::utils::load_image_rgba8;
 //use crate::{dvd::DvdState, shader::SimpleShaderPass};
 
@@ -25,6 +24,7 @@ mod test;
 mod utils;
 mod image_renderer;
 mod dvd_bounce;
+mod drawable;
 
 #[derive(Default)]
 struct App {
