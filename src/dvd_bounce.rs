@@ -1,6 +1,6 @@
 use pixels::wgpu::{self};
 
-use crate::{image_renderer::ImageRenderer, utils};
+use crate::{drawable::ImageDrawable, image_renderer::Renderer2D, utils};
 
 #[derive(Copy, Clone)]
 enum Color {
@@ -15,7 +15,7 @@ enum Color {
 
 impl Color {
     fn random() -> Color {
-        Color::Blue
+        Color::Purple
     }
 
     fn rgba(self) -> (u8, u8, u8, u8) {
@@ -55,7 +55,8 @@ const COLORS: [Color; 7] = [
 ];
 
 pub struct DvdBounceAnimation {
-    renderer: ImageRenderer,
+    renderer: Renderer2D,
+    drawable: ImageDrawable,
     x: i32,
     y: i32,
     speed_x: i32,
@@ -86,27 +87,25 @@ impl DvdBounceAnimation {
             panic!("weird shit");
         }
 
-        let renderer = ImageRenderer::new(
+        let renderer = Renderer2D::new(
             device,
-            queue,
-            image_width as u32,
-            image_height as u32,
-            image_data,
             surface_format,
             surface_width as u32,
             surface_height as u32,
         );
+        let drawable = ImageDrawable::new(device, queue, &renderer, image_width as u32, image_height as u32, image_data);
         let (x, y) = utils::get_random_position(surface_width - image_width, surface_height - image_height);
         let speed_x = 1;
         let speed_y = 1;
 
         let color = Color::random();
-        renderer.set_tint_color(queue, color.rgba());
+        drawable.set_tint_color(queue, color.rgba());
 
         println!("Create DVD bounce animation at ({x}, {y})");
 
         Self {
             renderer,
+            drawable,
             x,
             y,
             speed_x,
@@ -124,11 +123,11 @@ impl DvdBounceAnimation {
     pub fn update(&mut self, queue: &wgpu::Queue) {
         self.update_position(queue);
 
-        self.renderer.set_position(queue, self.x as u32, self.y as u32);
+        self.drawable.set_position(queue, self.x as u32, self.y as u32);
     }
 
     pub fn render(&self, encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView) {
-        self.renderer.render(encoder, target);
+        self.renderer.render(encoder, target, &self.drawable);
     }
 
     // invert speed if the image exceeds surface width after computation
@@ -175,7 +174,7 @@ impl DvdBounceAnimation {
         // fix overshoot and bounce
         if self.handle_collision() {
             self.color = self.color.next();
-            self.renderer.set_tint_color(queue, self.color.next().rgba());
+            self.drawable.set_tint_color(queue, self.color.next().rgba());
         }
     }
 
