@@ -1,7 +1,5 @@
 use pixels::wgpu::{self, ImageCopyTexture, util::DeviceExt};
 
-use crate::drawable::Drawable;
-
 // we use repr(C) to prevent Rust from messing with the memory layout
 #[repr(C)]
 #[derive(Copy, Clone, Debug, bytemuck::Pod, bytemuck::Zeroable)]
@@ -269,4 +267,9 @@ impl Renderer2D {
             }
         )
     }
+}
+
+pub trait Drawable {
+    fn bind<'a>(&'a self, pass: &mut wgpu::RenderPass<'a>);
+    fn draw<'a>(&'a self, pass: &mut wgpu::RenderPass<'a>);
 }

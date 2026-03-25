@@ -2,12 +2,7 @@ use pixels::wgpu::{self, ImageCopyTexture};
 
 use wgpu::util::DeviceExt;
 
-use crate::image_renderer::{self, Renderer2D};
-
-pub trait Drawable {
-    fn bind<'a>(&'a self, pass: &mut wgpu::RenderPass<'a>);
-    fn draw<'a>(&'a self, pass: &mut wgpu::RenderPass<'a>);
-}
+use crate::renderer::{self, Renderer2D};
 
 pub struct ImageDrawable {
     pub texture: wgpu::Texture,
@@ -63,7 +58,7 @@ impl ImageDrawable {
     }
 
     pub fn set_position(&self, queue: &wgpu::Queue, x: u32, y: u32) {
-        let transform = image_renderer::Transform {
+        let transform = renderer::Transform {
             offset: [x as f32, y as f32], // pixel coordinates directly
         };
 
@@ -76,7 +71,7 @@ impl ImageDrawable {
 
     pub fn set_tint_color(&self, queue: &wgpu::Queue, rgba: (u8, u8, u8, u8)) {
         // normalised and convert to float
-        let tint_color_normalised = image_renderer::Tint {
+        let tint_color_normalised = renderer::Tint {
             color: [rgba.0 as f32 / 255.0, rgba.1 as f32 / 255.0, rgba.2 as f32 / 255.0, rgba.3 as f32 / 255.0],
         };
 
@@ -130,10 +125,10 @@ impl ImageDrawable {
         // and place the top left corner of the quad at the centre of the screen
         // use pixels first, then convert to clip space in the shader
         let vertices = [
-            image_renderer::Vertex { position: [0.0, 0.0], uv: [0.0, 0.0] },                       // top left
-            image_renderer::Vertex { position: [width as f32, 0.0], uv: [1.0, 0.0] },              // top right
-            image_renderer::Vertex { position: [0.0, height as f32], uv: [0.0, 1.0] },             // bottom left
-            image_renderer::Vertex { position: [width as f32, height as f32], uv: [1.0, 1.0] },    // bottom right
+            renderer::Vertex { position: [0.0, 0.0], uv: [0.0, 0.0] },                       // top left
+            renderer::Vertex { position: [width as f32, 0.0], uv: [1.0, 0.0] },              // top right
+            renderer::Vertex { position: [0.0, height as f32], uv: [0.0, 1.0] },             // bottom left
+            renderer::Vertex { position: [width as f32, height as f32], uv: [1.0, 1.0] },    // bottom right
         ];
 
         device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -187,7 +182,7 @@ impl ImageDrawable {
     }
 }
 
-impl Drawable for ImageDrawable {
+impl renderer::Drawable for ImageDrawable {
     fn bind<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
         render_pass.set_bind_group(0, &self.bind_group, &[]);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));

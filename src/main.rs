@@ -22,9 +22,9 @@ mod draw;
 mod shader;
 mod test;
 mod utils;
-mod image_renderer;
+mod renderer;
+mod image_drawable;
 mod dvd_bounce;
-mod drawable;
 
 #[derive(Default)]
 struct App {
