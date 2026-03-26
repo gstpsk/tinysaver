@@ -70,3 +70,8 @@ fn fs_main(@location(0) in_uv: vec2<f32>) -> @location(0) vec4<f32> {
     let tinted_fragment = fragment * tint.color;
     return tinted_fragment;
 }
+
+@fragment
+fn fs_solid(@location(0) in_uv: vec2<f32>) -> @location(0) vec4<f32> {
+    return tint.color;
+}
