@@ -14,6 +14,8 @@ pub struct ImageDrawable {
     pub height: u32,
     transform_buffer: wgpu::Buffer,
     tint_color_buffer: wgpu::Buffer,
+    pub scale_x: f32,
+    pub scale_y: f32,
 }
 
 impl ImageDrawable {
@@ -50,13 +52,18 @@ impl ImageDrawable {
             width,
             height,
             transform_buffer,
-            tint_color_buffer
+            tint_color_buffer,
+            scale_x: 1.0,
+            scale_y: 1.0
         }
     }
 
     pub fn set_position(&self, queue: &wgpu::Queue, x: u32, y: u32) {
         let transform = renderer::Transform {
-            offset: [x as f32, y as f32], // pixel coordinates directly
+            offset: [x as f32, y as f32],
+            scale: [self.scale_x, self.scale_y],
+            rotation: 0.0,
+            _padding: 0.0
         };
 
         queue.write_buffer(

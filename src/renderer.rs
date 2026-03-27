@@ -35,6 +35,9 @@ impl Vertex {
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct Transform {
     pub offset: [f32; 2],
+    pub scale: [f32; 2],
+    pub rotation: f32,
+    pub _padding: f32, // ???
 }
 
 #[repr(C)]
@@ -312,6 +315,9 @@ impl Renderer2D {
     pub fn create_transform_buffer(device: &wgpu::Device) -> wgpu::Buffer {
         let initial_transform = Transform {
             offset: [0.0, 0.0], // initalise at the top left corner
+            scale: [1.0, 1.0],  // unscaled
+            rotation: 0.0,      // no rotation
+            _padding: 0.0,      // i know...
         };
 
         device.create_buffer_init(

@@ -37,6 +37,8 @@ pub struct ShapeDrawable {
     pub x: f32,
     pub y: f32,
     color: (u8, u8, u8, u8),
+    pub scale_x: f32,
+    pub scale_y: f32
 }
 
 impl ShapeDrawable {
@@ -77,7 +79,9 @@ impl ShapeDrawable {
             tint_color_buffer,
             x,
             y,
-            color
+            color,
+            scale_x: 1.0,
+            scale_y: 1.0
         }
     }
 
@@ -85,16 +89,16 @@ impl ShapeDrawable {
         renderer::PipelineType::Solid
     }
 
-    pub fn set_position(&self, queue: &wgpu::Queue, x: f32, y: f32) {
-        let transform = renderer::Transform {
-            offset: [x as f32, y as f32], // pixel coordinates directly
-        };
+    pub fn set_position(&mut self, queue: &wgpu::Queue, x: f32, y: f32) {
+        self.x = x;
+        self.y = y;
+        self.update_transform_buffer(queue);
+    }
 
-        queue.write_buffer(
-            &self.transform_buffer,
-            0,
-            bytemuck::bytes_of(&transform),
-        );
+    pub fn set_scale(&mut self, queue: &wgpu::Queue, scale_x: f32, scale_y: f32) {
+        self.scale_x = scale_x;
+        self.scale_y = scale_y;
+        self.update_transform_buffer(queue);
     }
 
     pub fn set_color(&mut self, queue: &wgpu::Queue, rgb: (u8, u8, u8)) {
@@ -106,6 +110,21 @@ impl ShapeDrawable {
     pub fn set_alpha(&mut self, queue: &wgpu::Queue, alpha: (u8)) {
         self.color.3 = alpha;
         self.update_color_buffer(queue);
+    }
+
+    fn update_transform_buffer(&self, queue: &wgpu::Queue) {
+        let transform = renderer::Transform {
+            offset: [self.x, self.y], // pixel coordinates directly
+            scale: [self.scale_x, self.scale_y],
+            rotation: 0.0,
+            _padding: 0.0
+        };
+
+        queue.write_buffer(
+            &self.transform_buffer,
+            0,
+            bytemuck::bytes_of(&transform),
+        );
     }
 
     fn update_color_buffer(&self, queue: &wgpu::Queue) {

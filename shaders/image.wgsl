@@ -29,7 +29,9 @@ struct VsOut {
 // could later add scale
 // and rotation
 struct Transform {
-    offset: vec2<f32>
+    offset: vec2<f32>,
+    scale: vec2<f32>,
+    rotation: f32
 };
 
 // used to convert pixel coordinates
@@ -48,8 +50,9 @@ fn vs_main(@location(0) in_position: vec2<f32>, @location(1) in_uv: vec2<f32>) -
     // prevents wgsl-analyzer from complaining...
     var out: VsOut;
 
-    // apply translation, still in pixels
-    let new_position = in_position + transform.offset;
+    // apply transform, still in pixels
+    let scaled = in_position * transform.scale;
+    let new_position = scaled + transform.offset;
     
     // now we use the projection matrix to convert from pixel to clip space
     let clip_space_position = projection.matrix * vec4<f32>(new_position, 0.0, 1.0);
