@@ -44,20 +44,26 @@ impl SpaceFlightAnimation {
 
             let alpha = 1.0 - z;
             let alpha_u8 = (255.0 * alpha) as u8;
+            let mut color: (u8, u8, u8, u8) = (255, 255, 255, 255);
 
-            // get a random blue/red shift
-            let shift = rand::random::<u8>().clamp(0, 150);
-            let mut color: (u8, u8, u8, u8) = (255, 255, 255, alpha_u8);
+            // get a 5% chance of a random blue/red shift
+            let should_shift = rand::random_bool(0.05);
 
-            // alternate blue shift and red shift
-            if n % 20 == 0 {
-                color.0 = 255-shift;
-                color.1 = 255-shift;
-                color.2 = 255;
-            } else if n % 50 == 0 {
-                color.0 = 255;
-                color.1 = 255-shift;
-                color.2 = 255-shift;
+            if should_shift {
+                let shift = rand::random::<u8>() % 150;
+                // 50/50 chance
+                if rand::random_bool(0.5) {
+                    color.0 = 255-shift;
+                    color.1 = 255-shift;
+                    color.2 = 255;
+                    color.3 = alpha_u8;
+                } else {
+                    color.0 = 255;
+                    color.1 = 255-shift;
+                    color.2 = 255-shift;
+                    color.3 = alpha_u8;
+                }
+
             }
 
             let shape = ShapeDrawable::new(device, queue, &renderer, rect, x as f32, y as f32, color);
