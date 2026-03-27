@@ -12,7 +12,9 @@ use winit::window::{Fullscreen, Window, WindowAttributes, WindowId};
 use font_kit::{family_name::FamilyName, font::Font, properties::Properties, source::SystemSource};
 use pixels::{Pixels, SurfaceTexture, wgpu::Backend};
 
+use crate::animation::Animation;
 use crate::dvd_bounce::DvdBounceAnimation;
+use crate::space_flight::SpaceFlightAnimation;
 use crate::utils::load_image_rgba8;
 //use crate::{dvd::DvdState, shader::SimpleShaderPass};
 
@@ -24,16 +26,16 @@ mod test;
 mod utils;
 mod renderer;
 mod image_drawable;
+mod shape_drawable;
+mod animation;
 mod dvd_bounce;
+mod space_flight;
 
 #[derive(Default)]
 struct App {
     window: Option<Arc<Window>>,
     pixels: Option<Pixels<'static>>,
-    //shader: Option<SimpleShaderPass>,
-    dvd_bounce_animation: Option<DvdBounceAnimation>,
-    //dvd_state: Option<DvdState>,
-    font: Option<Font>, // from font-kit
+    animation: Option<Box<dyn Animation>>,
     frame_count: u32,
     fps: u32,
 }
@@ -77,9 +79,10 @@ impl ApplicationHandler for App {
         let (image_data, image_width, image_height) = load_image_rgba8("arch25percent.png");
         //let image_renderer = ImageRenderer::new(pixels.device(), pixels.queue(), image_width, image_height, &image_data, pixels.render_texture_format(), size.width, size.height);
         let dvd_bounce_animation = DvdBounceAnimation::new(pixels.device(), pixels.queue(), &image_data, image_width as i32, image_height as i32, pixels.render_texture_format(), size.width as i32, size.height as i32);
+        let space_flight_animation = Box::new(SpaceFlightAnimation::new(pixels.device(), pixels.queue(), pixels.render_texture_format(), size.width as i32, size.height as i32));
 
         self.pixels = Some(pixels);
-        self.dvd_bounce_animation = Some(dvd_bounce_animation)
+        self.animation = Some(space_flight_animation);
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
@@ -90,14 +93,14 @@ impl ApplicationHandler for App {
                 Key::Character(ref s) if s == "q" => event_loop.exit(),
 
                 Key::Named(NamedKey::ArrowUp) => {
-                    if let Some(animation) = &mut self.dvd_bounce_animation {
-                        animation.increase_speed_by(1);
+                    if let Some(animation) = &mut self.animation {
+                        //animation.increase_speed_by(1);
                     }
                 }
 
                 Key::Named(NamedKey::ArrowDown) => {
-                    if let Some(animation) = &mut self.dvd_bounce_animation {
-                        animation.decrease_speed_by(1);
+                    if let Some(animation) = &mut self.animation {
+                        //animation.decrease_speed_by(1);
                     }
                 }
 
@@ -114,45 +117,24 @@ impl ApplicationHandler for App {
             }
 
             WindowEvent::RedrawRequested => {
-                let (Some(window), Some(pixels), Some(dvd_bounce_animation)) =
-                    (&self.window, &mut self.pixels, &mut self.dvd_bounce_animation)
+                let (Some(window), Some(pixels), Some(animation)) =
+                    (&self.window, &mut self.pixels, &mut self.animation)
                 else {
                     return;
                 };
 
                 let time_start = std::time::Instant::now();
 
-                let frame = pixels.frame_mut();
-
-                // Draw FPS
-                // if let Some(font) = &self.font {
-                //     draw_fps(
-                //         frame,
-                //         self.frame_count,
-                //         self.fps,
-                //         font,
-                //         window.inner_size().width as i32,
-                //         window.inner_size().height as i32,
-                //     );
-                // }
-
                 if self.frame_count % 200 == 0 {
                     println!("FPS: {}", self.fps);
                 }
 
-                //dvd::dvd_style(frame, self.frame_count, dvd_state);
-
-                
-
-                // Render
-                //pixels.render();
-
-                dvd_bounce_animation.update(pixels.queue());
+                animation.update(pixels.queue());
                 
                 if let Err(err) = pixels.render_with(|encoder, render_target, _context| {
                     //shader.render(encoder, target, pixels);
                     //image_renderer.render(encoder, render_target);
-                    dvd_bounce_animation.render(encoder, render_target);
+                    animation.render(encoder, render_target);
                     Ok(())
                 }) {
                     eprintln!("pixels.render_with failed: {err}");
@@ -181,57 +163,10 @@ impl ApplicationHandler for App {
     }
 }
 
-fn draw_fps(
-    frame: &mut [u8],
-    frame_count: u32,
-    fps: u32,
-    font: &Font,
-    surface_width: i32,
-    surface_height: i32,
-) {
-    let black = (0, 0, 0, 0);
-    let white = (255, 255, 255);
-    if frame_count % 30 == 0 {
-        draw::draw_rect(
-            frame,
-            100,
-            100,
-            500,
-            200,
-            0,
-            None,
-            true,
-            black,
-            surface_width,
-            surface_height,
-        );
-
-        let fps_string = format!("FPS: {}", fps);
-        draw::draw_string(
-            frame,
-            &fps_string,
-            &font,
-            white,
-            100,
-            100,
-            surface_width,
-            surface_height,
-        );
-    }
-}
-
 fn main() -> Result<(), EventLoopError> {
     let event_loop = EventLoop::new().unwrap();
-
-    // load font
-    let source = SystemSource::new();
-    let handle = source
-        .select_best_match(&[FamilyName::Monospace], &Properties::new())
-        .unwrap();
-    let font = handle.load().unwrap();
-
+    
     let mut app = App {
-        font: Some(font),
         ..Default::default()
     };
 
