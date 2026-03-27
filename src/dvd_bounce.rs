@@ -1,6 +1,6 @@
 use pixels::wgpu::{self};
 
-use crate::{image_drawable::ImageDrawable, renderer::Renderer2D, utils};
+use crate::{animation::Animation, image_drawable::ImageDrawable, renderer::{self, Drawable, Renderer2D}, utils};
 
 #[derive(Copy, Clone)]
 enum Color {
@@ -89,17 +89,21 @@ impl DvdBounceAnimation {
 
         let renderer = Renderer2D::new(
             device,
+            queue,
             surface_format,
             surface_width as u32,
             surface_height as u32,
         );
         let drawable = ImageDrawable::new(device, queue, &renderer, image_width as u32, image_height as u32, image_data);
+        let (d, w, h) = utils::load_image_rgba8("shrek.png");
+        let another_image = ImageDrawable::new(device, queue, &renderer, w as u32, h as u32, &d);
         let (x, y) = utils::get_random_position(surface_width - image_width, surface_height - image_height);
         let speed_x = 1;
         let speed_y = 1;
 
         let color = Color::random();
         drawable.set_tint_color(queue, color.rgba());
+        //let drawable = Box::new(drawable);
 
         println!("Create DVD bounce animation at ({x}, {y})");
 
@@ -127,7 +131,8 @@ impl DvdBounceAnimation {
     }
 
     pub fn render(&self, encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView) {
-        self.renderer.render(encoder, target, &self.drawable);
+        let drawables: [&dyn Drawable; 1] = [&self.drawable];
+        self.renderer.render(encoder, target, &drawables);
     }
 
     // invert speed if the image exceeds surface width after computation
@@ -186,5 +191,15 @@ impl DvdBounceAnimation {
     pub fn decrease_speed_by(&mut self, amount: i32) {
             if self.speed_x >= 0 { self.speed_x -= amount; } else { self.speed_x += amount; }
             if self.speed_y >= 0 { self.speed_y -= amount; } else { self.speed_y += amount; }
+    }
+}
+
+impl Animation for DvdBounceAnimation {
+    fn update(&mut self, queue: &wgpu::Queue) {
+        self.update(queue);
+    }
+
+    fn render(&self, encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView) {
+        self.render(encoder, target);
     }
 }
