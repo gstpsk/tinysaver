@@ -1,4 +1,4 @@
-use pixels::wgpu::{self, ImageCopyTexture, util::DeviceExt};
+use pixels::wgpu::{self, ImageCopyTexture, core::device::{self, queue}, util::DeviceExt};
 
 // we use repr(C) to prevent Rust from messing with the memory layout
 #[repr(C)]
@@ -43,21 +43,31 @@ pub struct Tint {
     pub color: [f32; 4],
 }
 
+pub enum PipelineType {
+    Solid,
+    Textured
+}
+
 pub struct Renderer2D {
+    pub dummy_texture_view: wgpu::TextureView,
     pub sampler: wgpu::Sampler,
     pub bind_group_layout: wgpu::BindGroupLayout,
-    render_pipeline: wgpu::RenderPipeline,
+    render_pipeline_solid: wgpu::RenderPipeline,
+    render_pipeline_textured: wgpu::RenderPipeline,
     pub projection_matrix_buffer: wgpu::Buffer,
     pub surface_width: u32,
     pub surface_height: u32
 }
 
 impl Renderer2D {
-    pub fn new(device: &wgpu::Device, surface_format: wgpu::TextureFormat, surface_width: u32, surface_height: u32) -> Self {
+    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, surface_format: wgpu::TextureFormat, surface_width: u32, surface_height: u32) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("image renderer shader module"),
             source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/image.wgsl").into()),
         });
+
+        let dummy_texture = Self::create_dummy_texture(device, queue);
+        let dummy_texture_view = dummy_texture.create_view(&wgpu::TextureViewDescriptor::default());
 
         let sampler = Self::create_sampler(device);
 
@@ -67,19 +77,22 @@ impl Renderer2D {
                 
         let render_pipeline_layout = Self::create_render_pipeline_layout(device, &bind_group_layout);
         
-        let render_pipeline = Self::create_render_pipeline(device, &render_pipeline_layout, &shader, surface_format);
+        let render_pipeline_solid = Self::create_render_pipeline(device, &render_pipeline_layout, &shader, "fs_solid", surface_format);
+        let render_pipeline_textured = Self::create_render_pipeline(device, &render_pipeline_layout, &shader, "fs_textured", surface_format);
 
         Self {
+            dummy_texture_view,
             sampler,
             bind_group_layout,
-            render_pipeline,
+            render_pipeline_solid,
+            render_pipeline_textured,
             projection_matrix_buffer,
             surface_width,
             surface_height
         }
     }
 
-    pub fn render(&self, encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView, drawable: &impl Drawable) {
+    pub fn render(&self, encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView, drawables: &[&dyn Drawable]) {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
             label: Some("image renderer pass"),
             color_attachments: &[Some(wgpu::RenderPassColorAttachment {
@@ -95,9 +108,58 @@ impl Renderer2D {
             occlusion_query_set: None,
         });
 
-        render_pass.set_pipeline(&self.render_pipeline);
-        drawable.bind(&mut render_pass);
-        drawable.draw(&mut render_pass);
+        
+
+        for drawable in drawables {
+            match drawable.pipeline_type() {
+                PipelineType::Solid => { render_pass.set_pipeline(&self.render_pipeline_solid); },
+                PipelineType::Textured => { render_pass.set_pipeline(&self.render_pipeline_textured); }
+            }
+            drawable.bind(&mut render_pass);
+            drawable.draw(&mut render_pass);
+        }
+
+    }
+
+    fn create_dummy_texture(device: &wgpu::Device, queue: &wgpu::Queue) -> wgpu::Texture {
+        let dummy_texture = device.create_texture(&wgpu::TextureDescriptor {
+            label: Some("Dummy texture"),
+            size: wgpu::Extent3d {
+                width: 1,
+                height: 1,
+                depth_or_array_layers: 1,
+            },
+            mip_level_count: 1,
+            sample_count: 1,
+            dimension: wgpu::TextureDimension::D2,
+            format: wgpu::TextureFormat::Rgba8UnormSrgb,
+            usage: wgpu::TextureUsages::TEXTURE_BINDING | wgpu::TextureUsages::COPY_DST,
+            view_formats: &[],
+        });
+
+        let white_pixel: [u8; 4] = [255, 255, 255, 255];
+
+        queue.write_texture(
+            wgpu::ImageCopyTexture {
+                texture: &dummy_texture,
+                mip_level: 0,
+                origin: wgpu::Origin3d::ZERO,
+                aspect: wgpu::TextureAspect::All,
+            },
+            &white_pixel,
+            wgpu::ImageDataLayout {
+                offset: 0,
+                bytes_per_row: Some(4),
+                rows_per_image: Some(1),
+            },
+            wgpu::Extent3d {
+                width: 1,
+                height: 1,
+                depth_or_array_layers: 1,
+            },
+        );
+
+        dummy_texture
     }
     
     fn create_sampler(device: &wgpu::Device) -> wgpu::Sampler {
@@ -177,6 +239,35 @@ impl Renderer2D {
             })
     }
 
+    pub fn create_bind_group(&self, device: &wgpu::Device, texture_view: &wgpu::TextureView, transform_buffer: &wgpu::Buffer, tint_color_buffer: &wgpu::Buffer) -> wgpu::BindGroup {
+        device.create_bind_group(&wgpu::BindGroupDescriptor {
+            label: Some("epic bind group"),
+            layout: &self.bind_group_layout,
+            entries: &[
+                wgpu::BindGroupEntry {
+                    binding: 0,
+                    resource: wgpu::BindingResource::TextureView(texture_view)
+                },
+                wgpu::BindGroupEntry {
+                    binding: 1,
+                    resource: wgpu::BindingResource::Sampler(&self.sampler)
+                },
+                wgpu::BindGroupEntry {
+                    binding: 2,
+                    resource: wgpu::BindingResource::Buffer(transform_buffer.as_entire_buffer_binding())
+                },
+                wgpu::BindGroupEntry {
+                    binding: 3,
+                    resource: wgpu::BindingResource::Buffer(self.projection_matrix_buffer.as_entire_buffer_binding())
+                },
+                wgpu::BindGroupEntry {
+                    binding: 4,
+                    resource: wgpu::BindingResource::Buffer(tint_color_buffer.as_entire_buffer_binding())
+                }
+            ],
+        })
+    }
+
     fn create_render_pipeline_layout(device: &wgpu::Device, bind_group_layout: &wgpu::BindGroupLayout) -> wgpu::PipelineLayout {
         device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("epic render pipeline layout"),
@@ -185,14 +276,14 @@ impl Renderer2D {
         })
     }
 
-    fn create_render_pipeline(device: &wgpu::Device, render_pipeline_layout: &wgpu::PipelineLayout, shader: &wgpu::ShaderModule, surface_format: wgpu::TextureFormat) -> wgpu::RenderPipeline {
+    fn create_render_pipeline(device: &wgpu::Device, render_pipeline_layout: &wgpu::PipelineLayout, shader: &wgpu::ShaderModule, fragment_entry: &str, surface_format: wgpu::TextureFormat) -> wgpu::RenderPipeline {
         device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("epic render pipeline"),
             layout: Some(render_pipeline_layout),
             vertex: wgpu::VertexState { module: shader, entry_point: "vs_main", buffers: &[Vertex::desc()] },
             fragment: Some(wgpu::FragmentState { 
                 module: shader,
-                entry_point: "fs_main",
+                entry_point: fragment_entry,
                 targets: &[Some(wgpu::ColorTargetState {
                     format: surface_format,
                     blend: Some(wgpu::BlendState::ALPHA_BLENDING),
@@ -270,6 +361,7 @@ impl Renderer2D {
 }
 
 pub trait Drawable {
+    fn pipeline_type(&self) -> PipelineType;
     fn bind<'a>(&'a self, pass: &mut wgpu::RenderPass<'a>);
     fn draw<'a>(&'a self, pass: &mut wgpu::RenderPass<'a>);
 }

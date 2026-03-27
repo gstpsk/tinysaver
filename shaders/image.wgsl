@@ -65,7 +65,7 @@ fn vs_main(@location(0) in_position: vec2<f32>, @location(1) in_uv: vec2<f32>) -
 // input: the texture coordinate of the pixel to be drawn
 // output: an vertex containing the final rgba data drawn to the screen 
 @fragment
-fn fs_main(@location(0) in_uv: vec2<f32>) -> @location(0) vec4<f32> {
+fn fs_textured(@location(0) in_uv: vec2<f32>) -> @location(0) vec4<f32> {
     let fragment = textureSample(image_texture, image_sampler, in_uv);
     let tinted_fragment = fragment * tint.color;
     return tinted_fragment;
