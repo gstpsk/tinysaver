@@ -1,0 +1,146 @@
+use pixels::wgpu;
+
+use crate::{animation::Animation, renderer::{Drawable, Renderer2D}, shape_drawable::{ShapeDrawable, ShapeType}, utils};
+
+struct Star {
+    shape: ShapeDrawable,
+    z: f32, // 0.0 close, 1.0 is far
+}
+
+pub struct SpaceFlightAnimation {
+    renderer: Renderer2D,
+    drawables: Vec<Star>,
+    surface_width: i32,
+    surface_height: i32,
+}
+
+impl SpaceFlightAnimation {
+    pub fn new(
+        device: &wgpu::Device,
+        queue: &wgpu::Queue,
+        surface_format: wgpu::TextureFormat,
+        surface_width: i32,
+        surface_height: i32,
+    ) -> Self {
+        let renderer = Renderer2D::new(
+            device,
+            queue,
+            surface_format,
+            surface_width as u32,
+            surface_height as u32,
+        );
+
+        let mut drawables: Vec<Star> = Vec::new();
+
+        let rect = ShapeType::Rectangle {
+            width: 2.0,
+            height: 2.0,
+        };
+
+        for n in 0..2000 {
+            let (x, y) = utils::get_random_position(surface_width - rect.width() as i32, surface_height - rect.height() as i32);
+            
+            let z = rand::random::<f32>().clamp(0.0, 1.0);
+
+            let alpha = 1.0 - z;
+            let alpha_u8 = (255.0 * alpha) as u8;
+
+            // get a random blue/red shift
+            let shift = rand::random::<u8>().clamp(0, 150);
+            let mut color: (u8, u8, u8, u8) = (255, 255, 255, alpha_u8);
+
+            // alternate blue shift and red shift
+            if n % 20 == 0 {
+                color.0 = 255-shift;
+                color.1 = 255-shift;
+                color.2 = 255;
+            } else if n % 50 == 0 {
+                color.0 = 255;
+                color.1 = 255-shift;
+                color.2 = 255-shift;
+            }
+
+            let shape = ShapeDrawable::new(device, queue, &renderer, rect, x as f32, y as f32, color);
+            
+            let star = Star {
+                shape,
+                z,
+            };         
+            
+            drawables.push(star);
+        }
+
+
+        Self {
+            renderer,
+            drawables,
+            surface_width,
+            surface_height            
+        }
+    }
+
+    pub fn update(&mut self, queue: &wgpu::Queue) {
+        self.update_position(queue);
+        self.update_appearance(queue);
+    }
+
+    fn update_position(&mut self, queue: &wgpu::Queue) {
+        // compute center
+        let cx = self.surface_width as f32 / 2.0;
+        let cy = self.surface_height as f32 / 2.0;
+
+        for star in &mut self.drawables {
+            // vector pointing to drawable
+            let dx = star.shape.x - cx;
+            let dy = star.shape.y - cy;
+
+            let len = (dx*dx + dy*dy).sqrt().max(0.001); // avoid divide-by-zero
+            let dir_x = dx / len;
+            let dir_y = dy / len;
+
+            // move outward
+            let speed = 1.0 / star.z;
+            star.shape.x += dir_x * speed;
+            star.shape.y += dir_y * speed;
+
+            // respawn if off-screen
+            if star.shape.x < 0.0 || star.shape.x > self.surface_width as f32 ||
+            star.shape.y < 0.0 || star.shape.y > self.surface_height as f32 {
+
+                let (rx, ry) = utils::get_random_position(
+                    self.surface_width,
+                    self.surface_height
+                );
+
+                star.shape.x = cx + rx as f32 - (self.surface_width as f32 / 8.0);
+                star.shape.y = cy + ry as f32 - (self.surface_height as f32 / 8.0);
+            }
+
+            //drawable.set_position(queue, drawable.x as u32, drawable.y as u32);
+            star.shape.set_position(queue, star.shape.x, star.shape.y);
+        }
+    }
+
+    fn update_appearance(&mut self, queue: &wgpu::Queue) {
+        for star in &mut self.drawables {
+            let alpha = 1.0 - star.z;
+            let alpha_u8 = (255.0 * alpha) as u8;
+            star.shape.set_alpha(queue, alpha_u8);
+        }
+    }
+
+    pub fn render(&self, encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView) {
+        let drawable_refs: Vec<&dyn Drawable> = self.drawables.iter().map(|d| &d.shape as &dyn Drawable).collect(); // yes i know this looks horrible
+        self.renderer.render(encoder, target, &drawable_refs);
+    }
+}
+
+impl Animation for SpaceFlightAnimation {
+    fn update(&mut self, queue: &wgpu::Queue) {
+        self.update(queue);
+    }
+
+    fn render(&self, encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView) {
+        self.render(encoder, target);
+    }
+}
