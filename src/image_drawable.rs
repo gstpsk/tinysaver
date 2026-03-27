@@ -34,13 +34,10 @@ impl ImageDrawable {
         let transform_buffer = Renderer2D::create_transform_buffer(device);
         let tint_color_buffer = Renderer2D::create_tint_color_buffer(device);
 
-        let bind_group = Self::create_bind_group(
+        let bind_group = renderer.create_bind_group(
             device,
-            &renderer.bind_group_layout,
             &texture_view,
-            &renderer.sampler,
             &transform_buffer,
-            &renderer.projection_matrix_buffer,
             &tint_color_buffer,
         );
 
@@ -151,38 +148,13 @@ impl ImageDrawable {
             usage: wgpu::BufferUsages::INDEX,
         })
     }
-
-    fn create_bind_group(device: &wgpu::Device, bind_group_layout: &wgpu::BindGroupLayout, texture_view: &wgpu::TextureView, sampler: &wgpu::Sampler, transform_buffer: &wgpu::Buffer, projection_matrix_buffer: &wgpu::Buffer, tint_color_buffer: &wgpu::Buffer) -> wgpu::BindGroup {
-        device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("epic bind group"),
-            layout: bind_group_layout,
-            entries: &[
-                wgpu::BindGroupEntry {
-                    binding: 0,
-                    resource: wgpu::BindingResource::TextureView(texture_view)
-                },
-                wgpu::BindGroupEntry {
-                    binding: 1,
-                    resource: wgpu::BindingResource::Sampler(sampler)
-                },
-                wgpu::BindGroupEntry {
-                    binding: 2,
-                    resource: wgpu::BindingResource::Buffer(transform_buffer.as_entire_buffer_binding())
-                },
-                wgpu::BindGroupEntry {
-                    binding: 3,
-                    resource: wgpu::BindingResource::Buffer(projection_matrix_buffer.as_entire_buffer_binding())
-                },
-                wgpu::BindGroupEntry {
-                    binding: 4,
-                    resource: wgpu::BindingResource::Buffer(tint_color_buffer.as_entire_buffer_binding())
-                }
-            ],
-        })
-    }
 }
 
 impl renderer::Drawable for ImageDrawable {
+    fn pipeline_type(&self) -> renderer::PipelineType {
+        renderer::PipelineType::Textured
+    }
+
     fn bind<'a>(&'a self, render_pass: &mut wgpu::RenderPass<'a>) {
         render_pass.set_bind_group(0, &self.bind_group, &[]);
         render_pass.set_vertex_buffer(0, self.vertex_buffer.slice(..));
