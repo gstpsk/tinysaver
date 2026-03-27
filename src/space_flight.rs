@@ -33,14 +33,14 @@ impl SpaceFlightAnimation {
         let mut drawables: Vec<Star> = Vec::new();
 
         let rect = ShapeType::Rectangle {
-            width: 2.0,
-            height: 2.0,
+            width: 1.0,
+            height: 1.0,
         };
 
-        for n in 0..2000 {
+        for _ in 0..2000 {
             let (x, y) = utils::get_random_position(surface_width - rect.width() as i32, surface_height - rect.height() as i32);
             
-            let z = rand::random::<f32>().clamp(0.0, 1.0);
+            let z = 1.0 - (rand::random::<f32>() % 0.95);
 
             let alpha = 1.0 - z;
             let alpha_u8 = (255.0 * alpha) as u8;
@@ -100,7 +100,7 @@ impl SpaceFlightAnimation {
             let dx = star.shape.x - cx;
             let dy = star.shape.y - cy;
 
-            let len = (dx*dx + dy*dy).sqrt().max(0.001); // avoid divide-by-zero
+            let len = (dx*dx + dy*dy).sqrt();
             let dir_x = dx / len;
             let dir_y = dy / len;
 
@@ -118,8 +118,8 @@ impl SpaceFlightAnimation {
                     self.surface_height
                 );
 
-                star.shape.x = cx + rx as f32 - (self.surface_width as f32 / 8.0);
-                star.shape.y = cy + ry as f32 - (self.surface_height as f32 / 8.0);
+                star.shape.x = rx as f32;
+                star.shape.y = ry as f32;
             }
 
             //drawable.set_position(queue, drawable.x as u32, drawable.y as u32);
@@ -132,7 +132,7 @@ impl SpaceFlightAnimation {
             let alpha = 1.0 - star.z;
             let alpha_u8 = (255.0 * alpha) as u8;
             star.shape.set_alpha(queue, alpha_u8);
-            star.shape.set_scale(queue, alpha*2.0, alpha*2.0);
+            star.shape.set_scale(queue, alpha*4.0, alpha*4.0);
         }
     }
 
