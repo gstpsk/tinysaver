@@ -132,6 +132,7 @@ impl SpaceFlightAnimation {
             let alpha = 1.0 - star.z;
             let alpha_u8 = (255.0 * alpha) as u8;
             star.shape.set_alpha(queue, alpha_u8);
+            star.shape.set_scale(queue, alpha*2.0, alpha*2.0);
         }
     }
 
