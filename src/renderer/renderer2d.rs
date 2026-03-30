@@ -7,6 +7,7 @@ use crate::renderer::instance_data::{InstanceBatch, InstanceData};
 use crate::renderer::vertex::Vertex;
 
 pub const MAX_TEXTURES: u32 = 8;
+pub const MAX_INSTANCES: u32 = 50000;
 
 pub struct Renderer2D {
     texture_views: Vec<wgpu::TextureView>,
@@ -63,7 +64,7 @@ impl Renderer2D {
 
         let (quad_vertex_buffer, quad_index_buffer) = Self::create_quad_vertices(device);
 
-        let max_instances = 10000;
+        let max_instances = MAX_INSTANCES as usize;
         
         let instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
             label: Some("instance buffer"),
