@@ -1,12 +1,10 @@
-use std::char::MAX;
 use std::num::NonZeroU32;
 
 use wgpu;
 use wgpu::util::DeviceExt;
 
-use crate::instance_data::{InstanceBatch, InstanceData};
-use crate::drawable::Drawable;
-use crate::vertex::Vertex;
+use crate::renderer::instance_data::{InstanceBatch, InstanceData};
+use crate::renderer::vertex::Vertex;
 
 pub const MAX_TEXTURES: u32 = 8;
 
@@ -32,7 +30,7 @@ impl Renderer2D {
     pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, surface_format: wgpu::TextureFormat, surface_width: u32, surface_height: u32) -> Self {
         let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
             label: Some("image renderer shader module"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../shaders/image.wgsl").into()),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/image.wgsl").into()),
         });
 
         let dummy_texture = Self::create_dummy_texture(device, queue);

@@ -10,25 +10,18 @@ use winit::window::{Fullscreen, Window, WindowAttributes, WindowId};
 //use pixels::{Pixels, SurfaceTexture, wgpu::Backend};
 
 use crate::animation::Animation;
-use crate::dvd_bounce::DvdBounceAnimation;
+use crate::animations::DvdBounceAnimation;
 //use crate::dvd_bounce::DvdBounceAnimation;
-use crate::render_context::RenderContext;
-use crate::space_flight::SpaceFlightAnimation;
+use crate::renderer::RenderContext;
+use crate::animations::SpaceFlightAnimation;
 use crate::utils::load_image_rgba8;
 //use crate::{dvd::DvdState, shader::SimpleShaderPass};
 
-mod render_context;
-mod color;
-mod draw;
-mod test;
 mod utils;
-mod vertex;
-mod instance_data;
 mod renderer;
 mod drawable;
 mod animation;
-mod dvd_bounce;
-mod space_flight;
+mod animations;
 
 #[derive(Default)]
 struct App {

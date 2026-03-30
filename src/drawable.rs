@@ -1,4 +1,4 @@
-use crate::{instance_data::InstanceData, renderer};
+use crate::renderer::InstanceData;
 
 #[derive(Copy, Clone)]
 pub enum Shape {

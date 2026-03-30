@@ -1,6 +1,7 @@
 use wgpu::{self, wgc::device::queue};
 
-use crate::{animation::Animation, instance_data::{InstanceBatch, InstanceData}, renderer::Renderer2D, drawable::{Drawable, Material, Shape}, test, utils};
+use crate::{animation::Animation, drawable::{Drawable, Material, Shape}, utils};
+use crate::renderer::{Renderer2D, InstanceBatch};
 
 #[derive(Copy, Clone)]
 enum Color {

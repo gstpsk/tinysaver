@@ -1,6 +1,7 @@
 use wgpu;
 
-use crate::{animation::Animation, instance_data::{InstanceBatch, InstanceData}, renderer::Renderer2D, drawable::{Drawable, Material, Shape}, utils};
+use crate::{animation::Animation, drawable::{Drawable, Material, Shape}, utils};
+use crate::renderer::{Renderer2D, InstanceBatch};
 
 struct Star {
     shape: Drawable,
@@ -144,19 +145,7 @@ impl SpaceFlightAnimation {
         for star in &self.drawables {
             let s = &star.shape;
 
-            instance_batch.solid.push(InstanceData {
-                position: [s.x, s.y],
-                scale: [s.scale_x, s.scale_y],
-                rotation: 0.0,
-                color: [
-                    s.color.0 as f32 / 255.0,
-                    s.color.1 as f32 / 255.0,
-                    s.color.2 as f32 / 255.0,
-                    s.alpha as f32 / 255.0,
-                ],
-                shape_type: 0, // solid
-                texture_index: 0, // dummy texture
-            });
+            instance_batch.solid.push(s.to_instance_data());
         }
 
         self.renderer.upload_batches(queue, &instance_batch);

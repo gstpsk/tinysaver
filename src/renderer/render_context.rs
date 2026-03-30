@@ -1,7 +1,9 @@
-use std::{error::Error, sync::Arc};
+use std::sync::Arc;
 use winit::window::Window;
 
-use crate::{animation::Animation, renderer::{MAX_TEXTURES, Renderer2D}};
+use crate::{animation::Animation};
+
+use crate::renderer::renderer2d::MAX_TEXTURES;
 
 pub struct RenderContext {
     pub instance: wgpu::Instance,
