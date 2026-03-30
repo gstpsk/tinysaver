@@ -68,11 +68,11 @@ impl ApplicationHandler for App {
 
         let (image_data, image_width, image_height) = load_image_rgba8("arch25percent.png");
         //let image_renderer = ImageRenderer::new(pixels.device(), pixels.queue(), image_width, image_height, &image_data, pixels.render_texture_format(), size.width, size.height);
-        let dvd_bounce_animation = Box::new(DvdBounceAnimation::new(&ctx.device, &ctx.queue, &image_data, image_width as i32, image_height as i32, ctx.config.format, size.width as i32, size.height as i32));
-        //let space_flight_animation = Box::new(SpaceFlightAnimation::new(&ctx.device, &ctx.queue, ctx.config.format, size.width as i32, size.height as i32));
+        //let dvd_bounce_animation = Box::new(DvdBounceAnimation::new(&ctx.device, &ctx.queue, &image_data, image_width as i32, image_height as i32, ctx.config.format, size.width as i32, size.height as i32));
+        let space_flight_animation = Box::new(SpaceFlightAnimation::new(&ctx.device, &ctx.queue, ctx.config.format, size.width as i32, size.height as i32));
 
         self.render_context = Some(ctx);
-        self.animation = Some(dvd_bounce_animation);
+        self.animation = Some(space_flight_animation);
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
