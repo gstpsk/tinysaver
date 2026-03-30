@@ -1,9 +1,5 @@
-//use std::{error::Error, process};
-
-use core::panic;
 use std::sync::Arc;
 
-use wgpu;
 use winit::application::ApplicationHandler;
 use winit::error::EventLoopError;
 use winit::event::{WindowEvent};
@@ -15,6 +11,7 @@ use winit::window::{Fullscreen, Window, WindowAttributes, WindowId};
 
 use crate::animation::Animation;
 use crate::dvd_bounce::DvdBounceAnimation;
+//use crate::dvd_bounce::DvdBounceAnimation;
 use crate::render_context::RenderContext;
 use crate::space_flight::SpaceFlightAnimation;
 use crate::utils::load_image_rgba8;
@@ -25,9 +22,10 @@ mod color;
 mod draw;
 mod test;
 mod utils;
+mod vertex;
+mod instance_data;
 mod renderer;
-mod image_drawable;
-mod shape_drawable;
+mod drawable;
 mod animation;
 mod dvd_bounce;
 mod space_flight;
@@ -75,13 +73,13 @@ impl ApplicationHandler for App {
 
         //let shader = SimpleShaderPass::new(&pixels, size.width, size.height).unwrap();
 
-        //let (image_data, image_width, image_height) = load_image_rgba8("arch25percent.png");
+        let (image_data, image_width, image_height) = load_image_rgba8("arch25percent.png");
         //let image_renderer = ImageRenderer::new(pixels.device(), pixels.queue(), image_width, image_height, &image_data, pixels.render_texture_format(), size.width, size.height);
-        //let dvd_bounce_animation = Box::new(DvdBounceAnimation::new(&ctx.device, &ctx.queue, &image_data, image_width as i32, image_height as i32, ctx.config.format, size.width as i32, size.height as i32));
-        let space_flight_animation = Box::new(SpaceFlightAnimation::new(&ctx.device, &ctx.queue, ctx.config.format, size.width as i32, size.height as i32));
+        let dvd_bounce_animation = Box::new(DvdBounceAnimation::new(&ctx.device, &ctx.queue, &image_data, image_width as i32, image_height as i32, ctx.config.format, size.width as i32, size.height as i32));
+        //let space_flight_animation = Box::new(SpaceFlightAnimation::new(&ctx.device, &ctx.queue, ctx.config.format, size.width as i32, size.height as i32));
 
         self.render_context = Some(ctx);
-        self.animation = Some(space_flight_animation);
+        self.animation = Some(dvd_bounce_animation);
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {

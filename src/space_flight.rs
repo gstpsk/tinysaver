@@ -1,9 +1,9 @@
 use wgpu;
 
-use crate::{animation::Animation, renderer::{Drawable, Renderer2D}, shape_drawable::{ShapeDrawable, ShapeType}, utils};
+use crate::{animation::Animation, instance_data::{InstanceBatch, InstanceData}, renderer::Renderer2D, drawable::{Drawable, Material, Shape}, utils};
 
 struct Star {
-    shape: ShapeDrawable,
+    shape: Drawable,
     z: f32, // 0.0 close, 1.0 is far
 }
 
@@ -32,19 +32,19 @@ impl SpaceFlightAnimation {
 
         let mut drawables: Vec<Star> = Vec::new();
 
-        let rect = ShapeType::Rectangle {
+        let rect = Shape::Rectangle {
             width: 1.0,
             height: 1.0,
         };
 
-        for _ in 0..2000 {
+        for _ in 0..10000 {
             let (x, y) = utils::get_random_position(surface_width - rect.width() as i32, surface_height - rect.height() as i32);
             
             let z = 1.0 - (rand::random::<f32>() % 0.95);
 
             let alpha = 1.0 - z;
             let alpha_u8 = (255.0 * alpha) as u8;
-            let mut color: (u8, u8, u8, u8) = (255, 255, 255, 255);
+            let mut color: (u8, u8, u8) = (255, 255, 255);
 
             // get a 5% chance of a random blue/red shift
             let should_shift = rand::random_bool(0.05);
@@ -56,17 +56,16 @@ impl SpaceFlightAnimation {
                     color.0 = 255-shift;
                     color.1 = 255-shift;
                     color.2 = 255;
-                    color.3 = alpha_u8;
                 } else {
                     color.0 = 255;
                     color.1 = 255-shift;
                     color.2 = 255-shift;
-                    color.3 = alpha_u8;
                 }
 
             }
 
-            let shape = ShapeDrawable::new(device, queue, &renderer, rect, x as f32, y as f32, color);
+            //let shape = ShapeDrawable::new(device, &renderer, rect, x as f32, y as f32, color);
+            let shape = Drawable::new(rect, x as f32, y as f32, color, alpha_u8, Material::Solid);
             
             let star = Star {
                 shape,
@@ -86,11 +85,11 @@ impl SpaceFlightAnimation {
     }
 
     pub fn update(&mut self, queue: &wgpu::Queue) {
-        self.update_position(queue);
-        self.update_appearance(queue);
+        self.update_position();
+        self.update_appearance();
     }
 
-    fn update_position(&mut self, queue: &wgpu::Queue) {
+    fn update_position(&mut self) {
         // compute center
         let cx = self.surface_width as f32 / 2.0;
         let cy = self.surface_height as f32 / 2.0;
@@ -123,23 +122,52 @@ impl SpaceFlightAnimation {
             }
 
             //drawable.set_position(queue, drawable.x as u32, drawable.y as u32);
-            star.shape.set_position(queue, star.shape.x, star.shape.y);
+            star.shape.set_position(star.shape.x, star.shape.y);
         }
     }
 
-    fn update_appearance(&mut self, queue: &wgpu::Queue) {
+    fn update_appearance(&mut self) {
         for star in &mut self.drawables {
             let alpha = 1.0 - star.z;
             let alpha_u8 = (255.0 * alpha) as u8;
-            star.shape.set_alpha(queue, alpha_u8);
-            star.shape.set_scale(queue, alpha*4.0, alpha*4.0);
+            star.shape.set_alpha(alpha_u8);
+            star.shape.set_scale(alpha*4.0, alpha*4.0);
         }
     }
 
-    pub fn render(&self, encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView) {
-        let drawable_refs: Vec<&dyn Drawable> = self.drawables.iter().map(|d| &d.shape as &dyn Drawable).collect(); // yes i know this looks horrible
-        self.renderer.render(encoder, target, &drawable_refs);
+    pub fn render(&self, queue: &wgpu::Queue, encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView) {
+        let mut instance_batch = InstanceBatch {
+            solid: Vec::with_capacity(self.drawables.len()),
+            textured: Vec::new(),
+        };
+
+        for star in &self.drawables {
+            let s = &star.shape;
+
+            instance_batch.solid.push(InstanceData {
+                position: [s.x, s.y],
+                scale: [s.scale_x, s.scale_y],
+                rotation: 0.0,
+                color: [
+                    s.color.0 as f32 / 255.0,
+                    s.color.1 as f32 / 255.0,
+                    s.color.2 as f32 / 255.0,
+                    s.alpha as f32 / 255.0,
+                ],
+                shape_type: 0, // solid
+                texture_index: 0, // dummy texture
+            });
+        }
+
+        self.renderer.upload_batches(queue, &instance_batch);
+
+        self.renderer.render(
+            encoder,
+            target,
+            &instance_batch
+        );
     }
+
 }
 
 impl Animation for SpaceFlightAnimation {
@@ -147,7 +175,7 @@ impl Animation for SpaceFlightAnimation {
         self.update(queue);
     }
 
-    fn render(&self, encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView) {
-        self.render(encoder, target);
+    fn render(&self, queue: &wgpu::Queue, encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView) {
+        self.render(queue, encoder, target);
     }
 }

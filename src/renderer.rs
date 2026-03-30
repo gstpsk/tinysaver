@@ -5,7 +5,7 @@ use wgpu;
 use wgpu::util::DeviceExt;
 
 use crate::instance_data::{InstanceBatch, InstanceData};
-use crate::shape_drawable::Drawable;
+use crate::drawable::Drawable;
 use crate::vertex::Vertex;
 
 pub const MAX_TEXTURES: u32 = 8;

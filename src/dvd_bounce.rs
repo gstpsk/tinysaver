@@ -1,6 +1,6 @@
-use wgpu;
+use wgpu::{self, wgc::device::queue};
 
-use crate::{animation::Animation, image_drawable::ImageDrawable, renderer::{Drawable, Renderer2D}, utils};
+use crate::{animation::Animation, instance_data::{InstanceBatch, InstanceData}, renderer::Renderer2D, drawable::{Drawable, Material, Shape}, test, utils};
 
 #[derive(Copy, Clone)]
 enum Color {
@@ -18,15 +18,15 @@ impl Color {
         Color::Purple
     }
 
-    fn rgba(self) -> (u8, u8, u8, u8) {
+    fn rgb(self) -> (u8, u8, u8) {
         match self {
-            Color::Red    => (255,   0,   0, 255),
-            Color::Green  => (  0, 255,   0, 255),
-            Color::Blue   => (  0,   0, 255, 255),
-            Color::Yellow => (255, 255,   0, 255),
-            Color::Cyan   => (  0, 255, 255, 255),
-            Color::Purple => (255,   0, 255, 255),
-            Color::White  => (255, 255, 255, 255)
+            Color::Red    => (255,   0,   0),
+            Color::Green  => (  0, 255,   0),
+            Color::Blue   => (  0,   0, 255),
+            Color::Yellow => (255, 255,   0),
+            Color::Cyan   => (  0, 255, 255),
+            Color::Purple => (255,   0, 255),
+            Color::White  => (255, 255, 255)
         }
     }
 
@@ -56,14 +56,10 @@ const COLORS: [Color; 7] = [
 
 pub struct DvdBounceAnimation {
     renderer: Renderer2D,
-    drawable: ImageDrawable,
-    x: i32,
-    y: i32,
-    speed_x: i32,
-    speed_y: i32,
-    image_width: i32,
-    image_height: i32,
-    color: Color,
+    drawable: Drawable,
+    speed_x: f32,
+    speed_y: f32,
+    current_color: Color,
     surface_width: i32,
     surface_height: i32,
 }
@@ -87,36 +83,46 @@ impl DvdBounceAnimation {
             panic!("weird shit");
         }
 
-        let renderer = Renderer2D::new(
+        let mut renderer = Renderer2D::new(
             device,
             queue,
             surface_format,
             surface_width as u32,
             surface_height as u32,
         );
-        let drawable = ImageDrawable::new(device, queue, &renderer, image_width as u32, image_height as u32, image_data);
-        let (d, w, h) = utils::load_image_rgba8("shrek.png");
-        let another_image = ImageDrawable::new(device, queue, &renderer, w as u32, h as u32, &d);
-        let (x, y) = utils::get_random_position(surface_width - image_width, surface_height - image_height);
-        let speed_x = 1;
-        let speed_y = 1;
 
-        let color = Color::random();
-        drawable.set_tint_color(queue, color.rgba());
-        //let drawable = Box::new(drawable);
+        let texture = Renderer2D::create_texture_from_rgba8(
+            device,
+            queue,
+            image_width as u32,
+            image_height as u32,
+            image_data,
+        );
+
+        let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+        let shape = Shape::Rectangle { width: image_width as f32, height: image_height as f32 };
+        let (x, y) = utils::get_random_position(surface_width - image_width, surface_height - image_height);
+
+        let current_color = Color::random();
+        
+        let material = Material::Textured { 
+            texture_index: renderer.add_texture_view(device, texture_view)
+        };
+        
+        let drawable = Drawable::new(shape, x as f32, y as f32, current_color.rgb(), 255, material);
+
+        let speed_x = 1.0;
+        let speed_y = 1.0;
 
         println!("Create DVD bounce animation at ({x}, {y})");
 
         Self {
             renderer,
             drawable,
-            x,
-            y,
             speed_x,
             speed_y,
-            image_width,
-            image_height,
-            color,
+            current_color,
             surface_width,
             surface_height,
         }
@@ -127,43 +133,57 @@ impl DvdBounceAnimation {
     pub fn update(&mut self, queue: &wgpu::Queue) {
         self.update_position(queue);
 
-        self.drawable.set_position(queue, self.x as u32, self.y as u32);
+        //self.drawable.set_position(queue, self.x as u32, self.y as u32);
     }
 
-    pub fn render(&self, encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView) {
-        let drawables: [&dyn Drawable; 1] = [&self.drawable];
-        self.renderer.render(encoder, target, &drawables);
+    pub fn render(&self, queue: &wgpu::Queue, encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView) {
+        let mut instance_batch = InstanceBatch {
+            solid: Vec::new(),
+            textured: Vec::with_capacity(1),
+        };
+
+        let tex_index = match self.drawable.material {
+            Material::Textured { texture_index } => texture_index,
+            _ => 0,
+        };
+
+        instance_batch.textured.push(self.drawable.to_instance_data());
+
+        self.renderer.upload_batches(queue, &instance_batch);
+
+        self.renderer.render(encoder, target, &instance_batch);
     }
 
     // invert speed if the image exceeds surface width after computation
     fn handle_collision(&mut self) -> bool {
         let mut bounced = false;
 
+
         // right
-        if self.x + self.image_width >= self.surface_width {
-            self.x = self.surface_width - self.image_width;
+        if self.drawable.x + self.drawable.shape.width() >= self.surface_width as f32 {
+            self.drawable.x = self.surface_width as f32 - self.drawable.shape.width();
             self.speed_x = -self.speed_x;
             bounced = true;
         }
 
         // left
-        if self.x <= 0 {
-            self.x = 0;
+        if self.drawable.x <= 0.0 {
+            self.drawable.x = 0.0;
             self.speed_x = -self.speed_x;
             bounced = true;
         }
 
         // bottom wall
-        if (self.y + self.image_height + self.speed_y) >= self.surface_height {
-            self.y = self.surface_height - self.image_height;
+        if (self.drawable.y + self.drawable.shape.height() + self.speed_y) >= self.surface_height as f32 {
+            self.drawable.y = self.surface_height as f32 - self.drawable.shape.height();
             self.speed_y = -self.speed_y;
             bounced = true;
         }
 
 
         // bottom corners
-        if (self.y + self.speed_y) <= 0 {
-            self.y = 0;
+        if (self.drawable.y + self.speed_y) <= 0.0 {
+            self.drawable.y = 0.0;
             self.speed_y = -self.speed_y;
             bounced = true;
         }
@@ -173,24 +193,24 @@ impl DvdBounceAnimation {
 
     fn update_position(&mut self, queue: &wgpu::Queue) {
         // move
-        self.x += self.speed_x;
-        self.y += self.speed_y;
+        self.drawable.x += self.speed_x as f32;
+        self.drawable.y += self.speed_y as f32;
 
         // fix overshoot and bounce
         if self.handle_collision() {
-            self.color = self.color.next();
-            self.drawable.set_tint_color(queue, self.color.next().rgba());
+            self.current_color = self.current_color.next();
+            self.drawable.set_color(self.current_color.rgb());
         }
     }
 
-    pub fn increase_speed_by(&mut self, amount: i32) {
-            if self.speed_x >= 0 { self.speed_x += amount; } else { self.speed_x -= amount; }
-            if self.speed_y >= 0 { self.speed_y += amount; } else { self.speed_y -= amount; }
+    pub fn increase_speed_by(&mut self, amount: f32) {
+            if self.speed_x >= 0.0 { self.speed_x += amount; } else { self.speed_x -= amount; }
+            if self.speed_y >= 0.0 { self.speed_y += amount; } else { self.speed_y -= amount; }
     }
 
-    pub fn decrease_speed_by(&mut self, amount: i32) {
-            if self.speed_x >= 0 { self.speed_x -= amount; } else { self.speed_x += amount; }
-            if self.speed_y >= 0 { self.speed_y -= amount; } else { self.speed_y += amount; }
+    pub fn decrease_speed_by(&mut self, amount: f32) {
+            if self.speed_x >= 0.0 { self.speed_x -= amount; } else { self.speed_x += amount; }
+            if self.speed_y >= 0.0 { self.speed_y -= amount; } else { self.speed_y += amount; }
     }
 }
 
@@ -199,7 +219,7 @@ impl Animation for DvdBounceAnimation {
         self.update(queue);
     }
 
-    fn render(&self, encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView) {
-        self.render(encoder, target);
+    fn render(&self, queue: &wgpu::Queue, encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView) {
+        self.render(queue, encoder, target);
     }
 }
