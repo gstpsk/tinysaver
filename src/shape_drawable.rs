@@ -1,6 +1,6 @@
 use core::panic;
 
-use pixels::wgpu::{self};
+use wgpu;
 
 use wgpu::util::DeviceExt;
 

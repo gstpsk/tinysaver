@@ -1,27 +1,28 @@
 //use std::{error::Error, process};
 
+use core::panic;
 use std::sync::Arc;
 
+use wgpu;
 use winit::application::ApplicationHandler;
 use winit::error::EventLoopError;
-use winit::event::{Event, WindowEvent};
-use winit::event_loop::{ActiveEventLoop, ControlFlow, EventLoop};
-use winit::keyboard::{Key, NamedKey, SmolStr};
+use winit::event::{WindowEvent};
+use winit::event_loop::{ActiveEventLoop, EventLoop};
+use winit::keyboard::{Key, NamedKey};
 use winit::window::{Fullscreen, Window, WindowAttributes, WindowId};
 
-use font_kit::{family_name::FamilyName, font::Font, properties::Properties, source::SystemSource};
-use pixels::{Pixels, SurfaceTexture, wgpu::Backend};
+//use pixels::{Pixels, SurfaceTexture, wgpu::Backend};
 
 use crate::animation::Animation;
 use crate::dvd_bounce::DvdBounceAnimation;
+use crate::render_context::RenderContext;
 use crate::space_flight::SpaceFlightAnimation;
 use crate::utils::load_image_rgba8;
 //use crate::{dvd::DvdState, shader::SimpleShaderPass};
 
+mod render_context;
 mod color;
 mod draw;
-//mod dvd;
-mod shader;
 mod test;
 mod utils;
 mod renderer;
@@ -34,20 +35,20 @@ mod space_flight;
 #[derive(Default)]
 struct App {
     window: Option<Arc<Window>>,
-    pixels: Option<Pixels<'static>>,
+    render_context: Option<RenderContext>,
     animation: Option<Box<dyn Animation>>,
     frame_count: u32,
     fps: u32,
 }
 
-fn backend_to_str(backend: Backend) -> &'static str {
+fn backend_to_str(backend: wgpu::Backend) -> &'static str {
     // return static string slice
     match backend {
-        Backend::Vulkan => "Vulkan",
-        Backend::Metal => "Metal",
-        Backend::Dx12 => "DirectX 12",
-        Backend::Gl => "OpenGL",
-        Backend::BrowserWebGpu => "WebGPU",
+        wgpu::Backend::Vulkan => "Vulkan",
+        wgpu::Backend::Metal => "Metal",
+        wgpu::Backend::Dx12 => "DirectX 12",
+        wgpu::Backend::Gl => "OpenGL",
+        wgpu::Backend::BrowserWebGpu => "WebGPU",
         _ => "Unknown",
     }
 }
@@ -65,23 +66,21 @@ impl ApplicationHandler for App {
 
         _ = window.request_inner_size(size);
 
-        let surface_texture = SurfaceTexture::new(size.width, size.height, window.clone());
+        let ctx = RenderContext::new(window);
         
-        let mut pixels = Pixels::new(size.width, size.height, surface_texture).unwrap();
-        
-        println!("GPU: {}", pixels.adapter().get_info().name);
-        println!("Backend: {}", backend_to_str(pixels.adapter().get_info().backend));
+        println!("GPU: {}", ctx.adapter.get_info().name);
+        println!("Backend: {}", backend_to_str(ctx.adapter.get_info().backend));
 
-        pixels.enable_vsync(false);
+        //pixels.enable_vsync(false);
 
         //let shader = SimpleShaderPass::new(&pixels, size.width, size.height).unwrap();
 
-        let (image_data, image_width, image_height) = load_image_rgba8("arch25percent.png");
+        //let (image_data, image_width, image_height) = load_image_rgba8("arch25percent.png");
         //let image_renderer = ImageRenderer::new(pixels.device(), pixels.queue(), image_width, image_height, &image_data, pixels.render_texture_format(), size.width, size.height);
-        let dvd_bounce_animation = DvdBounceAnimation::new(pixels.device(), pixels.queue(), &image_data, image_width as i32, image_height as i32, pixels.render_texture_format(), size.width as i32, size.height as i32);
-        let space_flight_animation = Box::new(SpaceFlightAnimation::new(pixels.device(), pixels.queue(), pixels.render_texture_format(), size.width as i32, size.height as i32));
+        //let dvd_bounce_animation = Box::new(DvdBounceAnimation::new(&ctx.device, &ctx.queue, &image_data, image_width as i32, image_height as i32, ctx.config.format, size.width as i32, size.height as i32));
+        let space_flight_animation = Box::new(SpaceFlightAnimation::new(&ctx.device, &ctx.queue, ctx.config.format, size.width as i32, size.height as i32));
 
-        self.pixels = Some(pixels);
+        self.render_context = Some(ctx);
         self.animation = Some(space_flight_animation);
     }
 
@@ -108,17 +107,17 @@ impl ApplicationHandler for App {
             },
 
             WindowEvent::Resized(size) => {
-                if let Some(px) = self.pixels.as_mut() {
-                    if let Err(err) = px.resize_surface(size.width, size.height) {
-                        eprintln!("resize_surface failed: {err}");
-                        event_loop.exit();
-                    }
+                if let Some(render_context) = &mut self.render_context {
+                    render_context.resize(size.width, size.height);
                 }
+                else {
+                    return;
+                };
             }
 
             WindowEvent::RedrawRequested => {
-                let (Some(window), Some(pixels), Some(animation)) =
-                    (&self.window, &mut self.pixels, &mut self.animation)
+                let (Some(window), Some(render_context), Some(animation)) =
+                    (&self.window, &mut self.render_context, &mut self.animation)
                 else {
                     return;
                 };
@@ -129,18 +128,9 @@ impl ApplicationHandler for App {
                     println!("FPS: {}", self.fps);
                 }
 
-                animation.update(pixels.queue());
+                animation.update(&render_context.queue);
                 
-                if let Err(err) = pixels.render_with(|encoder, render_target, _context| {
-                    //shader.render(encoder, target, pixels);
-                    //image_renderer.render(encoder, render_target);
-                    animation.render(encoder, render_target);
-                    Ok(())
-                }) {
-                    eprintln!("pixels.render_with failed: {err}");
-                    event_loop.exit();
-                    return;
-                }
+                render_context.render(animation.as_mut()).expect("Failed to render animation");
                 
                 self.frame_count += 1;
 

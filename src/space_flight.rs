@@ -1,4 +1,4 @@
-use pixels::wgpu;
+use wgpu;
 
 use crate::{animation::Animation, renderer::{Drawable, Renderer2D}, shape_drawable::{ShapeDrawable, ShapeType}, utils};
 

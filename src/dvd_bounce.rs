@@ -1,6 +1,6 @@
-use pixels::wgpu::{self};
+use wgpu;
 
-use crate::{animation::Animation, image_drawable::ImageDrawable, renderer::{self, Drawable, Renderer2D}, utils};
+use crate::{animation::Animation, image_drawable::ImageDrawable, renderer::{Drawable, Renderer2D}, utils};
 
 #[derive(Copy, Clone)]
 enum Color {

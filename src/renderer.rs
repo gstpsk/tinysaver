@@ -1,4 +1,5 @@
-use pixels::wgpu::{self, ImageCopyTexture, core::device::{self, queue}, util::DeviceExt};
+use wgpu;
+use wgpu::util::DeviceExt;
 
 // we use repr(C) to prevent Rust from messing with the memory layout
 #[repr(C)]
@@ -105,10 +106,12 @@ impl Renderer2D {
                     load: wgpu::LoadOp::Load,       // keep what pixels already drew
                     store: wgpu::StoreOp::Store,
                 },
+                depth_slice: None,
             })],
             depth_stencil_attachment: None,
             timestamp_writes: None,
             occlusion_query_set: None,
+            multiview_mask: None,
         });
 
         
@@ -143,14 +146,14 @@ impl Renderer2D {
         let white_pixel: [u8; 4] = [255, 255, 255, 255];
 
         queue.write_texture(
-            wgpu::ImageCopyTexture {
+            wgpu::TexelCopyTextureInfo {
                 texture: &dummy_texture,
                 mip_level: 0,
                 origin: wgpu::Origin3d::ZERO,
                 aspect: wgpu::TextureAspect::All,
             },
             &white_pixel,
-            wgpu::ImageDataLayout {
+            wgpu::TexelCopyBufferLayout {
                 offset: 0,
                 bytes_per_row: Some(4),
                 rows_per_image: Some(1),
@@ -173,7 +176,7 @@ impl Renderer2D {
             address_mode_w: wgpu::AddressMode::ClampToEdge, // needed but unused cause we have no w for 2d space
             mag_filter: wgpu::FilterMode::Nearest, // pixel perfect rendering, pick pixels nearest to (u, v) value
             min_filter: wgpu::FilterMode::Nearest,
-            mipmap_filter: wgpu::FilterMode::Nearest, // shouldnt matter as we dont use mipmaps
+            mipmap_filter: wgpu::MipmapFilterMode::Nearest, // shouldnt matter as we dont use mipmaps
             lod_min_clamp: 0.0,                       // unused
             lod_max_clamp: 0.0,                       // unused
             compare: None,                            // unused
@@ -274,8 +277,8 @@ impl Renderer2D {
     fn create_render_pipeline_layout(device: &wgpu::Device, bind_group_layout: &wgpu::BindGroupLayout) -> wgpu::PipelineLayout {
         device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("epic render pipeline layout"),
-            bind_group_layouts: &[bind_group_layout],
-            push_constant_ranges: &[],
+            bind_group_layouts: &[Some(bind_group_layout)],
+            immediate_size: 0,
         })
     }
 
@@ -283,15 +286,16 @@ impl Renderer2D {
         device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("epic render pipeline"),
             layout: Some(render_pipeline_layout),
-            vertex: wgpu::VertexState { module: shader, entry_point: "vs_main", buffers: &[Vertex::desc()] },
+            vertex: wgpu::VertexState { module: shader, entry_point: Some("vs_main"), buffers: &[Vertex::desc()], compilation_options: Default::default() },
             fragment: Some(wgpu::FragmentState { 
                 module: shader,
-                entry_point: fragment_entry,
+                entry_point: Some(fragment_entry),
                 targets: &[Some(wgpu::ColorTargetState {
                     format: surface_format,
                     blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
+                compilation_options: Default::default(),
             }),
             primitive: wgpu::PrimitiveState {
                 topology: wgpu::PrimitiveTopology::TriangleList, // every three vertices correspond to a triangle
@@ -308,7 +312,8 @@ impl Renderer2D {
                 mask: !0,
                 alpha_to_coverage_enabled: false,
             },
-            multiview: None,
+            multiview_mask: None,
+            cache: None,
         })
     }
 

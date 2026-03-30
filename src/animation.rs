@@ -1,4 +1,4 @@
-use pixels::wgpu;
+use wgpu;
 
 pub trait Animation {
     fn update(&mut self, queue: &wgpu::Queue);

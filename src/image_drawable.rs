@@ -1,4 +1,4 @@
-use pixels::wgpu::{self, ImageCopyTexture};
+use wgpu::{self, TexelCopyBufferLayout, TexelCopyTextureInfo};
 
 use wgpu::util::DeviceExt;
 
@@ -106,14 +106,14 @@ impl ImageDrawable {
         });
 
         queue.write_texture(
-            ImageCopyTexture { 
+            TexelCopyTextureInfo { 
                 texture: &texture,                  // write to our newly created texture
                 mip_level: 0,                       // write to the first mip level (we only have one)
                 origin: wgpu::Origin3d::ZERO,       // begin writing at the start of texture
                 aspect: wgpu::TextureAspect::All    // copy everything
             },
             data, 
-            wgpu::ImageDataLayout {
+            TexelCopyBufferLayout {
                 offset: 0,                          // start reading from the buffer at the begining
                 bytes_per_row: Some(width * 4),     // each RGBA block is 4 bytes
                 rows_per_image: Some(height),               
