@@ -38,7 +38,7 @@ impl SpaceFlightAnimation {
             height: 1.0,
         };
 
-        for _ in 0..10000 {
+        for _ in 0..50000 {
             let (x, y) = utils::get_random_position(surface_width - rect.width() as i32, surface_height - rect.height() as i32);
             
             let z = 1.0 - (rand::random::<f32>() % 0.95);
