@@ -1,7 +1,7 @@
 use std::{error::Error, sync::Arc};
 use winit::window::Window;
 
-use crate::animation::Animation;
+use crate::{animation::Animation, renderer::{MAX_TEXTURES, Renderer2D}};
 
 pub struct RenderContext {
     pub instance: wgpu::Instance,
@@ -30,11 +30,18 @@ impl RenderContext {
         ))
         .expect("Requesting adapter failed");
 
+        let required_features = wgpu::Features::TEXTURE_BINDING_ARRAY | wgpu::Features::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING;
+
+        let required_limits = wgpu::Limits {
+            max_binding_array_elements_per_shader_stage: MAX_TEXTURES,
+            ..wgpu::Limits::default()
+        };
+
         let (device, queue) = pollster::block_on(adapter.request_device(
             &wgpu::DeviceDescriptor {
                 label: None,
-                required_features: wgpu::Features::empty(),
-                required_limits: wgpu::Limits::default(),
+                required_features: required_features,
+                required_limits: required_limits,
                 experimental_features: wgpu::ExperimentalFeatures::disabled(),
                 memory_hints: Default::default(),
                 trace: wgpu::Trace::Off,
@@ -50,7 +57,7 @@ impl RenderContext {
             format,
             width: size.width,
             height: size.height,
-            present_mode: wgpu::PresentMode::AutoNoVsync,
+            present_mode: wgpu::PresentMode::AutoVsync,
             alpha_mode: wgpu::CompositeAlphaMode::Auto,
             view_formats: vec![],
             desired_maximum_frame_latency: 2,
@@ -94,7 +101,7 @@ impl RenderContext {
 
         let mut encoder = self.device.create_command_encoder(&Default::default());
 
-        animation.render(&mut encoder, &view);
+        animation.render(&self.queue, &mut encoder, &view);
 
         self.queue.submit(Some(encoder.finish()));
         output.present();
