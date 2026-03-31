@@ -19,6 +19,7 @@ pub struct Renderer2D {
     pub projection_bind_group: wgpu::BindGroup,
     render_pipeline_solid: wgpu::RenderPipeline,
     render_pipeline_textured: wgpu::RenderPipeline,
+    render_pipeline_wireframe: wgpu::RenderPipeline,
     pub quad_vertex_buffer: wgpu::Buffer,
     pub quad_index_buffer: wgpu::Buffer,
     pub instance_buffer: wgpu::Buffer,
@@ -61,6 +62,7 @@ impl Renderer2D {
         
         let render_pipeline_solid = Self::create_render_pipeline(device, &render_pipeline_layout, &shader, "fs_solid", surface_format);
         let render_pipeline_textured = Self::create_render_pipeline(device, &render_pipeline_layout, &shader, "fs_textured", surface_format);
+        let render_pipeline_wireframe = Self::create_render_pipeline(device, &render_pipeline_layout, &shader, "fs_wireframe", surface_format);
 
         let (quad_vertex_buffer, quad_index_buffer) = Self::create_quad_vertices(device);
 
@@ -83,6 +85,7 @@ impl Renderer2D {
             projection_bind_group,
             render_pipeline_solid,
             render_pipeline_textured,
+            render_pipeline_wireframe,
             quad_vertex_buffer,
             quad_index_buffer,
             instance_buffer,
@@ -134,7 +137,12 @@ impl Renderer2D {
             render_pass.draw_indexed(0..6, 0, textured_start..textured_end);
         }
 
-
+        if !instance_batch.wireframe.is_empty() {
+            let wireframe_start = (instance_batch.solid.len() + instance_batch.textured.len()) as u32;
+            let wireframe_end = wireframe_start + instance_batch.wireframe.len() as u32;
+            render_pass.set_pipeline(&self.render_pipeline_wireframe);
+            render_pass.draw_indexed(0..6, 0, wireframe_start..wireframe_end);
+        }
 
     }
 
@@ -439,18 +447,27 @@ impl Renderer2D {
     }
 
     pub fn upload_batches(&self, queue: &wgpu::Queue, instance_batch: &InstanceBatch) {
+        // upload solid
         queue.write_buffer(
             &self.instance_buffer,
             0,
             bytemuck::cast_slice(&instance_batch.solid),
         );
 
-        let offset = (instance_batch.solid.len() * std::mem::size_of::<InstanceData>()) as u64;
-
+        // upload textured
+        let mut offset = (instance_batch.solid.len() * std::mem::size_of::<InstanceData>()) as u64;
         queue.write_buffer(
             &self.instance_buffer,
             offset,
             bytemuck::cast_slice(&instance_batch.textured),
+        );
+
+        // upload wireframe
+        offset += (instance_batch.textured.len() * std::mem::size_of::<InstanceData>()) as u64;
+        queue.write_buffer(
+            &self.instance_buffer,
+            offset,
+            bytemuck::cast_slice(&instance_batch.wireframe),
         );
     }
 

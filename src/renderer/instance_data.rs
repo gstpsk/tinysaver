@@ -68,5 +68,6 @@ impl InstanceData {
 
 pub struct InstanceBatch {
     pub solid: Vec<InstanceData>,
-    pub textured: Vec<InstanceData>
+    pub textured: Vec<InstanceData>,
+    pub wireframe: Vec<InstanceData>
 }

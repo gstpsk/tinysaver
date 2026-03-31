@@ -141,6 +141,7 @@ impl DvdBounceAnimation {
         let mut instance_batch = InstanceBatch {
             solid: Vec::new(),
             textured: Vec::with_capacity(1),
+            wireframe: Vec::new()
         };
 
         let tex_index = match self.drawable.material {

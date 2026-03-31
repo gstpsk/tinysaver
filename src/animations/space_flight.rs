@@ -140,6 +140,7 @@ impl SpaceFlightAnimation {
         let mut instance_batch = InstanceBatch {
             solid: Vec::with_capacity(self.drawables.len()),
             textured: Vec::new(),
+            wireframe: Vec::new(),
         };
 
         for star in &self.drawables {
