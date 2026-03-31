@@ -168,4 +168,8 @@ impl Animation for SpaceFlightAnimation {
     fn render(&self, queue: &wgpu::Queue, encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView) {
         self.render(queue, encoder, target);
     }
+
+    fn on_key(&mut self, key: winit::keyboard::Key) {
+        
+    }
 }
