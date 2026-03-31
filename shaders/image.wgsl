@@ -84,20 +84,3 @@ fn fs_textured(@location(0) in_uv: vec2<f32>, @location(5) instance_color: vec4<
 fn fs_solid(@location(5) instance_color: vec4<f32>) -> @location(0) vec4<f32> {
     return instance_color;
 }
-
-@fragment
-fn fs_wireframe(@location(0) in_uv: vec2<f32>, @location(5) instance_color: vec4<f32>) -> @location(0) vec4<f32> {
-    let thickness = 0.003;
-
-    let on_edge =
-        in_uv.x < thickness ||
-        in_uv.x > 1.0 - thickness ||
-        in_uv.y < thickness ||
-        in_uv.y > 1.0 - thickness;
-
-    if (!on_edge) {
-        discard;
-    }
-
-    return instance_color;
-}
