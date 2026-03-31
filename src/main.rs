@@ -67,37 +67,26 @@ impl ApplicationHandler for App {
         //let shader = SimpleShaderPass::new(&pixels, size.width, size.height).unwrap();
 
         let (image_data, image_width, image_height) = load_image_rgba8("arch25percent.png");
-        //let image_renderer = ImageRenderer::new(pixels.device(), pixels.queue(), image_width, image_height, &image_data, pixels.render_texture_format(), size.width, size.height);
-        //let dvd_bounce_animation = Box::new(DvdBounceAnimation::new(&ctx.device, &ctx.queue, &image_data, image_width as i32, image_height as i32, ctx.config.format, size.width as i32, size.height as i32));
+
+        let dvd_bounce_animation = Box::new(DvdBounceAnimation::new(&ctx.device, &ctx.queue, &image_data, image_width as i32, image_height as i32, ctx.config.format, size.width as i32, size.height as i32));
         let space_flight_animation = Box::new(SpaceFlightAnimation::new(&ctx.device, &ctx.queue, ctx.config.format, size.width as i32, size.height as i32));
-        let wireframe_animation = Box::new(WireframeAnimation::new(&ctx.device, &ctx.queue, 200.0, 200.0, ctx.config.format, size.width, size.height));
+        let wireframe_animation = Box::new(WireframeAnimation::new(&ctx.device, &ctx.queue,ctx.config.format, size.width, size.height));
 
         self.render_context = Some(ctx);
-        self.animation = Some(wireframe_animation);
+        self.animation = Some(space_flight_animation);
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
-
-            WindowEvent::KeyboardInput { event, .. } => match event.logical_key {
+            WindowEvent::KeyboardInput { event, .. } => match event.logical_key {                
                 Key::Character(ref s) if s == "q" => event_loop.exit(),
-
-                Key::Named(NamedKey::ArrowUp) => {
-                    if let Some(animation) = &mut self.animation {
-                        //animation.increase_speed_by(1);
-                    }
+                key => { 
+                    if let Some(animation) = &mut self.animation { 
+                        animation.on_key(key);
+                    } 
                 }
-
-                Key::Named(NamedKey::ArrowDown) => {
-                    if let Some(animation) = &mut self.animation {
-                        //animation.decrease_speed_by(1);
-                    }
-                }
-
-                _ => {}
             },
-
             WindowEvent::Resized(size) => {
                 if let Some(render_context) = &mut self.render_context {
                     render_context.resize(size.width, size.height);
@@ -106,7 +95,6 @@ impl ApplicationHandler for App {
                     return;
                 };
             }
-
             WindowEvent::RedrawRequested => {
                 let (Some(window), Some(render_context), Some(animation)) =
                     (&self.window, &mut self.render_context, &mut self.animation)
