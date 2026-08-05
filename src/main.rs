@@ -2,9 +2,9 @@ use std::sync::Arc;
 
 use winit::application::ApplicationHandler;
 use winit::error::EventLoopError;
-use winit::event::{WindowEvent};
+use winit::event::WindowEvent;
 use winit::event_loop::{ActiveEventLoop, EventLoop};
-use winit::keyboard::{Key, NamedKey};
+use winit::keyboard::Key;
 use winit::window::{Fullscreen, Window, WindowAttributes, WindowId};
 
 //use pixels::{Pixels, SurfaceTexture, wgpu::Backend};
@@ -12,19 +12,41 @@ use winit::window::{Fullscreen, Window, WindowAttributes, WindowId};
 use crate::animation::Animation;
 use crate::animations::{DvdBounceAnimation, WireframeAnimation};
 //use crate::dvd_bounce::DvdBounceAnimation;
-use crate::renderer::RenderContext;
 use crate::animations::SpaceFlightAnimation;
+use crate::renderer::RenderContext;
 use crate::utils::load_image_rgba8;
 //use crate::{dvd::DvdState, shader::SimpleShaderPass};
 
-mod utils;
-mod renderer;
-mod drawable;
 mod animation;
 mod animations;
+mod drawable;
+mod renderer;
+mod utils;
+
+#[derive(Clone, Copy)]
+enum AnimationType {
+    Dvd,
+    Space,
+    Wireframe,
+}
+
+impl AnimationType {
+    fn from_string(string: &str) -> Option<Self> {
+        match string {
+            "dvd" => Some(Self::Dvd),
+            "space" => Some(Self::Space),
+            "wireframe" => Some(Self::Wireframe),
+            _ => None,
+        }
+    }
+}
+
+const INVALID_ARGS: &str = "Please provide a valid animation selection.";
+const USAGE: &str = "Usage: tinysaver [animation], choose from: dvd, space, wireframe.";
 
 #[derive(Default)]
 struct App {
+    selected_animation: Option<AnimationType>,
     window: Option<Arc<Window>>,
     render_context: Option<RenderContext>,
     animation: Option<Box<dyn Animation>>,
@@ -46,7 +68,8 @@ fn backend_to_str(backend: wgpu::Backend) -> &'static str {
 
 impl ApplicationHandler for App {
     fn resumed(&mut self, event_loop: &ActiveEventLoop) {
-        let window_attributes = WindowAttributes::default().with_fullscreen(Some(Fullscreen::Borderless(None)));
+        let window_attributes =
+            WindowAttributes::default().with_fullscreen(Some(Fullscreen::Borderless(None)));
 
         let window = Arc::new(event_loop.create_window(window_attributes).unwrap());
         self.window = Some(window.clone());
@@ -58,9 +81,12 @@ impl ApplicationHandler for App {
         _ = window.request_inner_size(size);
 
         let ctx = RenderContext::new(window);
-        
+
         println!("GPU: {}", ctx.adapter.get_info().name);
-        println!("Backend: {}", backend_to_str(ctx.adapter.get_info().backend));
+        println!(
+            "Backend: {}",
+            backend_to_str(ctx.adapter.get_info().backend)
+        );
 
         //pixels.enable_vsync(false);
 
@@ -68,30 +94,52 @@ impl ApplicationHandler for App {
 
         let (image_data, image_width, image_height) = load_image_rgba8("arch25percent.png");
 
-        let dvd_bounce_animation = Box::new(DvdBounceAnimation::new(&ctx.device, &ctx.queue, &image_data, image_width as i32, image_height as i32, ctx.config.format, size.width as i32, size.height as i32));
-        let space_flight_animation = Box::new(SpaceFlightAnimation::new(&ctx.device, &ctx.queue, ctx.config.format, size.width as i32, size.height as i32));
-        let wireframe_animation = Box::new(WireframeAnimation::new(&ctx.device, &ctx.queue,ctx.config.format, size.width, size.height));
+        let animation: Box<dyn Animation> = match self.selected_animation.unwrap() {
+            AnimationType::Dvd => Box::new(DvdBounceAnimation::new(
+                &ctx.device,
+                &ctx.queue,
+                &image_data,
+                image_width as i32,
+                image_height as i32,
+                ctx.config.format,
+                size.width as i32,
+                size.height as i32,
+            )),
+            AnimationType::Space => Box::new(SpaceFlightAnimation::new(
+                &ctx.device,
+                &ctx.queue,
+                ctx.config.format,
+                size.width as i32,
+                size.height as i32,
+            )),
+            AnimationType::Wireframe => Box::new(WireframeAnimation::new(
+                &ctx.device,
+                &ctx.queue,
+                ctx.config.format,
+                size.width,
+                size.height,
+            )),
+        };
 
+        self.animation = Some(animation);
         self.render_context = Some(ctx);
-        self.animation = Some(space_flight_animation);
     }
 
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
-            WindowEvent::KeyboardInput { event, .. } => match event.logical_key {                
+            WindowEvent::KeyboardInput { event, .. } => match event.logical_key {
                 Key::Character(ref s) if s == "q" => event_loop.exit(),
-                key => { 
-                    if let Some(animation) = &mut self.animation { 
+                key => {
+                    if let Some(animation) = &mut self.animation {
                         animation.on_key(key);
-                    } 
+                    }
                 }
             },
             WindowEvent::Resized(size) => {
                 if let Some(render_context) = &mut self.render_context {
                     render_context.resize(size.width, size.height);
-                }
-                else {
+                } else {
                     return;
                 };
             }
@@ -109,9 +157,11 @@ impl ApplicationHandler for App {
                 }
 
                 animation.update(&render_context.queue);
-                
-                render_context.render(animation.as_mut()).expect("Failed to render animation");
-                
+
+                render_context
+                    .render(animation.as_mut())
+                    .expect("Failed to render animation");
+
                 self.frame_count += 1;
 
                 // Compute FPS
@@ -135,8 +185,25 @@ impl ApplicationHandler for App {
 
 fn main() -> Result<(), EventLoopError> {
     let event_loop = EventLoop::new().unwrap();
-    
+
+    let arg_string = std::env::args().nth(1);
+
+    if arg_string.is_none() {
+        println!("{}", INVALID_ARGS);
+        println!("{}", USAGE);
+        std::process::exit(1);
+    }
+
+    let selected_animation = AnimationType::from_string(&arg_string.unwrap());
+
+    if selected_animation.is_none() {
+        println!("{}", INVALID_ARGS);
+        println!("{}", USAGE);
+        std::process::exit(1);
+    }
+
     let mut app = App {
+        selected_animation,
         ..Default::default()
     };
 
