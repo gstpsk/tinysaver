@@ -15,7 +15,7 @@ enum Color {
 }
 
 impl Color {
-    fn random() -> Color {
+    fn random() -> Color { // todo
         Color::Purple
     }
 

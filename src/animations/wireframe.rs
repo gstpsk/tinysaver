@@ -1,5 +1,3 @@
-use font_kit::loaders::default;
-use wgpu::Color;
 use winit::keyboard::Key;
 
 use crate::{
