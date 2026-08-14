@@ -1,6 +1,7 @@
 use std::sync::Arc;
 use winit::window::Window;
 
+use crate::renderer::renderer3d::DepthTexture;
 use crate::{animation::Animation};
 
 use crate::renderer::renderer2d::MAX_TEXTURES;
@@ -12,6 +13,7 @@ pub struct RenderContext {
     pub device: wgpu::Device,
     pub queue: wgpu::Queue,
     pub config: wgpu::SurfaceConfiguration,
+    pub depth_texture: DepthTexture,
     pub window: Arc<Window>,
 }
 
@@ -32,7 +34,7 @@ impl RenderContext {
         ))
         .expect("Requesting adapter failed");
 
-        let required_features = wgpu::Features::TEXTURE_BINDING_ARRAY | wgpu::Features::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING;
+        let required_features = wgpu::Features::TEXTURE_BINDING_ARRAY | wgpu::Features::SAMPLED_TEXTURE_AND_STORAGE_BUFFER_ARRAY_NON_UNIFORM_INDEXING | wgpu::Features::POLYGON_MODE_LINE;
 
         let required_limits = wgpu::Limits {
             max_binding_array_elements_per_shader_stage: MAX_TEXTURES,
@@ -65,6 +67,13 @@ impl RenderContext {
             desired_maximum_frame_latency: 2,
         };
 
+        let depth_texture = DepthTexture::create_depth_texture(
+            &device,
+            config.width,
+            config.height,
+            "depth texture",
+        );
+
         surface.configure(&device, &config);
 
         Self {
@@ -74,6 +83,7 @@ impl RenderContext {
             device,
             queue,
             config,
+            depth_texture,
             window,
         }
     }
@@ -103,7 +113,7 @@ impl RenderContext {
 
         let mut encoder = self.device.create_command_encoder(&Default::default());
 
-        animation.render(&self.queue, &mut encoder, &view);
+        animation.render(&self, &mut encoder, &view);
 
         self.queue.submit(Some(encoder.finish()));
         output.present();
@@ -120,5 +130,12 @@ impl RenderContext {
         self.config.height = height;
 
         self.surface.configure(&self.device, &self.config);
+
+        self.depth_texture = DepthTexture::create_depth_texture(
+            &self.device,
+            width,
+            height,
+            "depth texture",
+        );
     }
 }

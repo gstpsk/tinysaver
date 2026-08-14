@@ -4,7 +4,7 @@ use wgpu;
 use wgpu::util::DeviceExt;
 
 use crate::renderer::instance_data::{InstanceBatch, InstanceData};
-use crate::renderer::vertex::Vertex;
+use crate::renderer::vertex2d::Vertex2D;
 
 pub const MAX_TEXTURES: u32 = 8;
 pub const MAX_INSTANCES: u32 = 50000;
@@ -323,7 +323,7 @@ impl Renderer2D {
         device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("epic render pipeline"),
             layout: Some(render_pipeline_layout),
-            vertex: wgpu::VertexState { module: shader, entry_point: Some("vs_main"), buffers: &[Vertex::desc(), InstanceData::desc()], compilation_options: Default::default() },
+            vertex: wgpu::VertexState { module: shader, entry_point: Some("vs_main"), buffers: &[Vertex2D::desc(), InstanceData::desc()], compilation_options: Default::default() },
             fragment: Some(wgpu::FragmentState { 
                 module: shader,
                 entry_point: Some(fragment_entry),
@@ -409,10 +409,10 @@ impl Renderer2D {
 
     fn create_quad_vertices(device: &wgpu::Device) -> (wgpu::Buffer, wgpu::Buffer) {
         let vertices = [
-            Vertex { position: [0.0, 0.0], uv: [0.0, 0.0] },                       // top left
-            Vertex { position: [1.0, 0.0], uv: [1.0, 0.0] },              // top right
-            Vertex { position: [0.0, 1.0], uv: [0.0, 1.0] },             // bottom left
-            Vertex { position: [1.0, 1.0], uv: [1.0, 1.0] },    // bottom right
+            Vertex2D { position: [0.0, 0.0], uv: [0.0, 0.0] },                       // top left
+            Vertex2D { position: [1.0, 0.0], uv: [1.0, 0.0] },              // top right
+            Vertex2D { position: [0.0, 1.0], uv: [0.0, 1.0] },             // bottom left
+            Vertex2D { position: [1.0, 1.0], uv: [1.0, 1.0] },    // bottom right
         ];
 
         let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {

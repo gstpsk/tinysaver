@@ -1,6 +1,6 @@
 use wgpu;
 
-use crate::{animation::Animation, drawable::{Drawable, Material, Shape}, utils};
+use crate::{animation::Animation, drawable::{Drawable, Material, Shape}, renderer::RenderContext, utils};
 use crate::renderer::{Renderer2D, InstanceBatch};
 
 struct Star {
@@ -85,7 +85,7 @@ impl SpaceFlightAnimation {
         }
     }
 
-    pub fn update(&mut self, queue: &wgpu::Queue) {
+    pub fn update(&mut self) {
         self.update_position();
         self.update_appearance();
     }
@@ -136,7 +136,7 @@ impl SpaceFlightAnimation {
         }
     }
 
-    pub fn render(&self, queue: &wgpu::Queue, encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView) {
+    pub fn render(&self, ctx: &RenderContext, encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView) {
         let mut instance_batch = InstanceBatch {
             solid: Vec::with_capacity(self.drawables.len()),
             textured: Vec::new(),
@@ -149,7 +149,7 @@ impl SpaceFlightAnimation {
             instance_batch.solid.push(s.to_instance_data());
         }
 
-        self.renderer.upload_batches(queue, &instance_batch);
+        self.renderer.upload_batches(&ctx.queue, &instance_batch);
 
         self.renderer.render(
             encoder,
@@ -161,15 +161,15 @@ impl SpaceFlightAnimation {
 }
 
 impl Animation for SpaceFlightAnimation {
-    fn update(&mut self, queue: &wgpu::Queue) {
-        self.update(queue);
+    fn update(&mut self, ctx: &RenderContext) {
+        self.update();
     }
 
-    fn render(&self, queue: &wgpu::Queue, encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView) {
-        self.render(queue, encoder, target);
+    fn render(&self, ctx: &RenderContext, encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView) {
+        self.render(ctx, encoder, target);
     }
 
-    fn on_key(&mut self, key: winit::keyboard::Key) {
+    fn on_key(&mut self, key: winit::event::KeyEvent) {
         
     }
 }

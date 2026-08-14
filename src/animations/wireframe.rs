@@ -1,9 +1,7 @@
 use winit::keyboard::Key;
 
 use crate::{
-    animation::Animation,
-    drawable::{self, Drawable, Material, Shape},
-    renderer::{InstanceBatch, Renderer2D},
+    animation::Animation, drawable::{self, Drawable, Material, Shape}, renderer::{InstanceBatch, RenderContext, Renderer2D},
 };
 
 struct Point3D {
@@ -217,7 +215,7 @@ impl WireframeAnimation {
 
     pub fn render(
         &self,
-        queue: &wgpu::Queue,
+        ctx: &RenderContext,
         encoder: &mut wgpu::CommandEncoder,
         target: &wgpu::TextureView,
     ) {
@@ -235,7 +233,7 @@ impl WireframeAnimation {
             instance_batch.solid.push(d.to_instance_data());
         }
 
-        self.renderer.upload_batches(queue, &instance_batch);
+        self.renderer.upload_batches(&ctx.queue, &instance_batch);
 
         self.renderer.render(encoder, target, &instance_batch);
     }
@@ -304,21 +302,21 @@ impl WireframeAnimation {
 }
 
 impl Animation for WireframeAnimation {
-    fn update(&mut self, queue: &wgpu::Queue) {
+    fn update(&mut self, ctx: &RenderContext) {
         self.update();
     }
 
     fn render(
         &self,
-        queue: &wgpu::Queue,
+        ctx: &RenderContext,
         encoder: &mut wgpu::CommandEncoder,
         target: &wgpu::TextureView,
     ) {
-        self.render(queue, encoder, target);
+        self.render(ctx, encoder, target);
     }
 
-    fn on_key(&mut self, key: Key) {
-        match key {
+    fn on_key(&mut self, key: winit::event::KeyEvent) {
+        match key.logical_key {
             Key::Character(ref s) if s == "w" => { 
                 self.angle_x += 0.02;
                 self.angle_y += 0.02;

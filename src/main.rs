@@ -7,15 +7,10 @@ use winit::event_loop::{ActiveEventLoop, EventLoop};
 use winit::keyboard::Key;
 use winit::window::{Fullscreen, Window, WindowAttributes, WindowId};
 
-//use pixels::{Pixels, SurfaceTexture, wgpu::Backend};
-
 use crate::animation::Animation;
-use crate::animations::{DvdBounceAnimation, WireframeAnimation};
-//use crate::dvd_bounce::DvdBounceAnimation;
-use crate::animations::SpaceFlightAnimation;
+use crate::animations::{DvdBounceAnimation, RotatingCubeAnimation, SpaceFlightAnimation, WireframeAnimation};
 use crate::renderer::RenderContext;
 use crate::utils::load_image_rgba8;
-//use crate::{dvd::DvdState, shader::SimpleShaderPass};
 
 mod animation;
 mod animations;
@@ -28,6 +23,7 @@ enum AnimationType {
     Dvd,
     Space,
     Wireframe,
+    RotatingCube,
 }
 
 impl AnimationType {
@@ -36,6 +32,7 @@ impl AnimationType {
             "dvd" => Some(Self::Dvd),
             "space" => Some(Self::Space),
             "wireframe" => Some(Self::Wireframe),
+            "rotating-cube" => Some(Self::RotatingCube),
             _ => None,
         }
     }
@@ -74,11 +71,11 @@ impl ApplicationHandler for App {
         let window = Arc::new(event_loop.create_window(window_attributes).unwrap());
         self.window = Some(window.clone());
 
-        let monitors: Vec<_> = window.available_monitors().collect();
-        let size = monitors.first().unwrap().size(); // this sucks but current/primary monitor returns None on wayland
+        //let monitors: Vec<_> = window.available_monitors().collect();
+        //let size = monitors.first().unwrap().size(); // this sucks but current/primary monitor returns None on wayland
         //let size = window.primary_monitor().unwrap().size();
 
-        _ = window.request_inner_size(size);
+        //_ = window.request_inner_size(size);
 
         let ctx = RenderContext::new(window);
 
@@ -86,6 +83,13 @@ impl ApplicationHandler for App {
         println!(
             "Backend: {}",
             backend_to_str(ctx.adapter.get_info().backend)
+        );
+
+        println!(
+            "window: {:?}, config: {}x{}",
+            ctx.window.inner_size(),
+            ctx.config.width,
+            ctx.config.height,
         );
 
         //pixels.enable_vsync(false);
@@ -102,23 +106,26 @@ impl ApplicationHandler for App {
                 image_width as i32,
                 image_height as i32,
                 ctx.config.format,
-                size.width as i32,
-                size.height as i32,
+                ctx.config.width as i32,
+                ctx.config.height as i32,
             )),
             AnimationType::Space => Box::new(SpaceFlightAnimation::new(
                 &ctx.device,
                 &ctx.queue,
                 ctx.config.format,
-                size.width as i32,
-                size.height as i32,
+                ctx.config.width as i32,
+                ctx.config.height as i32,
             )),
             AnimationType::Wireframe => Box::new(WireframeAnimation::new(
                 &ctx.device,
                 &ctx.queue,
                 ctx.config.format,
-                size.width,
-                size.height,
+                ctx.config.width,
+                ctx.config.height,
             )),
+            AnimationType::RotatingCube => Box::new(RotatingCubeAnimation::new(
+                &ctx
+            ))
         };
 
         self.animation = Some(animation);
@@ -128,15 +135,20 @@ impl ApplicationHandler for App {
     fn window_event(&mut self, event_loop: &ActiveEventLoop, _id: WindowId, event: WindowEvent) {
         match event {
             WindowEvent::CloseRequested => event_loop.exit(),
-            WindowEvent::KeyboardInput { event, .. } => match event.logical_key {
-                Key::Character(ref s) if s == "q" => event_loop.exit(),
-                key => {
-                    if let Some(animation) = &mut self.animation {
-                        animation.on_key(key);
-                    }
+            WindowEvent::KeyboardInput { event, .. } => {
+                // On Q quit the application
+                match event.logical_key {
+                    Key::Character(ref s) if s == "q" => event_loop.exit(),
+                    _ => ()
                 }
-            },
+                // Pass key events in their entirety
+                if let Some(animation) = &mut self.animation {
+                            animation.on_key(event);
+                }
+            }
             WindowEvent::Resized(size) => {
+                println!("RESIZED: {}x{}", size.width, size.height);
+
                 if let Some(render_context) = &mut self.render_context {
                     render_context.resize(size.width, size.height);
                 } else {
@@ -156,7 +168,7 @@ impl ApplicationHandler for App {
                     println!("FPS: {}", self.fps);
                 }
 
-                animation.update(&render_context.queue);
+                animation.update(&render_context);
 
                 render_context
                     .render(animation.as_mut())

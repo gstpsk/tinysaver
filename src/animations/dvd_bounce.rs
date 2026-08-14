@@ -1,6 +1,6 @@
 use wgpu::{self, wgc::device::queue};
 
-use crate::{animation::Animation, drawable::{Drawable, Material, Shape}, utils};
+use crate::{animation::Animation, drawable::{Drawable, Material, Shape}, renderer::RenderContext, utils};
 use crate::renderer::{Renderer2D, InstanceBatch};
 
 #[derive(Copy, Clone)]
@@ -131,13 +131,13 @@ impl DvdBounceAnimation {
 
     // feels a bit weird we have to update the position in two places
     // maybe this could be improved...
-    pub fn update(&mut self, queue: &wgpu::Queue) {
-        self.update_position(queue);
+    pub fn update(&mut self) {
+        self.update_position();
 
         //self.drawable.set_position(queue, self.x as u32, self.y as u32);
     }
 
-    pub fn render(&self, queue: &wgpu::Queue, encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView) {
+    pub fn render(&self, ctx: &RenderContext, encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView) {
         let mut instance_batch = InstanceBatch {
             solid: Vec::new(),
             textured: Vec::with_capacity(1),
@@ -151,7 +151,7 @@ impl DvdBounceAnimation {
 
         instance_batch.textured.push(self.drawable.to_instance_data());
 
-        self.renderer.upload_batches(queue, &instance_batch);
+        self.renderer.upload_batches(&ctx.queue, &instance_batch);
 
         self.renderer.render(encoder, target, &instance_batch);
     }
@@ -193,7 +193,7 @@ impl DvdBounceAnimation {
         bounced
     }
 
-    fn update_position(&mut self, queue: &wgpu::Queue) {
+    fn update_position(&mut self) {
         // move
         self.drawable.x += self.speed_x as f32;
         self.drawable.y += self.speed_y as f32;
@@ -217,15 +217,15 @@ impl DvdBounceAnimation {
 }
 
 impl Animation for DvdBounceAnimation {
-    fn update(&mut self, queue: &wgpu::Queue) {
-        self.update(queue);
+    fn update(&mut self, ctx: &RenderContext) {
+        self.update();
     }
 
-    fn render(&self, queue: &wgpu::Queue, encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView) {
-        self.render(queue, encoder, target);
+    fn render(&self, ctx: &RenderContext, encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView) {
+        self.render(ctx, encoder, target);
     }
 
-    fn on_key(&mut self, key: winit::keyboard::Key) {
+    fn on_key(&mut self, key: winit::event::KeyEvent) {
         
     }
 }
