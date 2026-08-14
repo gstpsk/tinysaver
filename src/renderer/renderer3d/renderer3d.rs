@@ -1,8 +1,8 @@
 use wgpu::util::DeviceExt;
 
-use crate::renderer::RenderContext;
+use crate::renderer::{RenderContext, diffuse_texture};
 use crate::renderer::mesh::GpuMesh;
-use crate::renderer::renderer3d::{TransformUniform, depth_texture, diffuse_texture};
+use crate::renderer::renderer3d::{TransformUniform, depth_texture};
 use crate::renderer::vertex3d::Vertex3D;
 
 pub struct Renderer3D {

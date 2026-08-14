@@ -67,16 +67,12 @@ pub struct DvdBounceAnimation {
 
 impl DvdBounceAnimation {
     pub fn new(
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
+        ctx: &RenderContext,
         image_data: &[u8],
         image_width: i32,
         image_height: i32,
-        surface_format: wgpu::TextureFormat,
-        surface_width: i32,
-        surface_height: i32,
     ) -> Self {
-        if image_width >= surface_width || image_height >= surface_height {
+        if image_width >= ctx.config.width as i32 || image_height >= ctx.config.height as i32 {
             panic!("Tried to create DvdBounceAnimation with too large image");
         }
 
@@ -84,13 +80,7 @@ impl DvdBounceAnimation {
             panic!("weird shit");
         }
 
-        let mut renderer = Renderer2D::new(
-            device,
-            queue,
-            surface_format,
-            surface_width as u32,
-            surface_height as u32,
-        );
+        let mut renderer = Renderer2D::new(ctx);
 
         let texture = Renderer2D::create_texture_from_rgba8(
             device,

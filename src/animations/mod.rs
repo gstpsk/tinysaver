@@ -1,4 +1,5 @@
 mod dvd_bounce;
+mod dvd_bounce_new;
 mod space_flight;
 mod wireframe;
 mod rotating_cube;

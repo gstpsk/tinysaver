@@ -3,7 +3,9 @@ use std::num::NonZeroU32;
 use wgpu;
 use wgpu::util::DeviceExt;
 
+use crate::renderer::RenderContext;
 use crate::renderer::instance_data::{InstanceBatch, InstanceData};
+use crate::renderer::diffuse_texture;
 use crate::renderer::vertex2d::Vertex2D;
 
 pub const MAX_TEXTURES: u32 = 8;
@@ -15,83 +17,15 @@ pub struct Renderer2D {
     pub sampler: wgpu::Sampler,
     pub texture_bind_group_layout: wgpu::BindGroupLayout,
     pub texture_bind_group: wgpu::BindGroup,
-    pub projection_bind_group_layout: wgpu::BindGroupLayout,
     pub projection_bind_group: wgpu::BindGroup,
     render_pipeline_solid: wgpu::RenderPipeline,
     render_pipeline_textured: wgpu::RenderPipeline,
     pub quad_vertex_buffer: wgpu::Buffer,
     pub quad_index_buffer: wgpu::Buffer,
     pub instance_buffer: wgpu::Buffer,
-    pub projection_matrix_buffer: wgpu::Buffer,
-    pub surface_width: u32,
-    pub surface_height: u32
 }
 
 impl Renderer2D {
-    pub fn new(device: &wgpu::Device, queue: &wgpu::Queue, surface_format: wgpu::TextureFormat, surface_width: u32, surface_height: u32) -> Self {
-        let shader = device.create_shader_module(wgpu::ShaderModuleDescriptor {
-            label: Some("image renderer shader module"),
-            source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/image.wgsl").into()),
-        });
-
-        let dummy_texture = Self::create_dummy_texture(device, queue);
-        let dummy_texture_view = dummy_texture.create_view(&wgpu::TextureViewDescriptor::default());
-
-        let mut texture_views = Vec::with_capacity(MAX_TEXTURES as usize);
-        
-        for _ in 0..MAX_TEXTURES {
-            texture_views.push(dummy_texture_view.clone());
-        }
-
-        let next_texture_slot = 1; // 0 is dummy
-
-        let texture_refs: Vec<&wgpu::TextureView> = texture_views.iter().collect();
-
-        let sampler = Self::create_sampler(device);
-
-        let projection_matrix_buffer = Self::create_projection_matrix_buffer(device, surface_width, surface_height);
-
-        let texture_bind_group_layout = Self::create_texture_bind_group_layout(device);
-        let texture_bind_group = Self::create_texture_bind_group(device, &texture_bind_group_layout, &texture_refs, &sampler);
-        
-        let projection_bind_group_layout = Self::create_projection_bind_group_layout(device);
-        let projection_bind_group = Self::create_projection_bind_group(device, &projection_bind_group_layout, &projection_matrix_buffer);
-                
-        let render_pipeline_layout = Self::create_render_pipeline_layout(device, &texture_bind_group_layout, &projection_bind_group_layout);
-        
-        let render_pipeline_solid = Self::create_render_pipeline(device, &render_pipeline_layout, &shader, "fs_solid", surface_format);
-        let render_pipeline_textured = Self::create_render_pipeline(device, &render_pipeline_layout, &shader, "fs_textured", surface_format);
-
-        let (quad_vertex_buffer, quad_index_buffer) = Self::create_quad_vertices(device);
-
-        let max_instances = MAX_INSTANCES as usize;
-        
-        let instance_buffer = device.create_buffer(&wgpu::BufferDescriptor {
-            label: Some("instance buffer"),
-            size: (max_instances * std::mem::size_of::<InstanceData>()) as u64,
-            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
-            mapped_at_creation: false,
-        });
-        
-        Self {
-            texture_views,
-            next_texture_slot,
-            sampler,
-            texture_bind_group_layout,
-            texture_bind_group,
-            projection_bind_group_layout,
-            projection_bind_group,
-            render_pipeline_solid,
-            render_pipeline_textured,
-            quad_vertex_buffer,
-            quad_index_buffer,
-            instance_buffer,
-            projection_matrix_buffer,
-            surface_width,
-            surface_height
-        }
-    }
-
     // expects a single type of instances
     pub fn render(&self, encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView, instance_batch: &InstanceBatch) {
         let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
@@ -209,8 +143,8 @@ impl Renderer2D {
         dummy_texture
     }
     
-    fn create_sampler(device: &wgpu::Device) -> wgpu::Sampler {
-        device.create_sampler(&wgpu::SamplerDescriptor {
+    fn create_sampler(ctx: &RenderContext) -> wgpu::Sampler {
+        ctx.device.create_sampler(&wgpu::SamplerDescriptor {
             label: Some("yeah the sampler idk why label"),
             address_mode_u: wgpu::AddressMode::ClampToEdge, // if u bigger than 1 return right most pixel, and vice versa for if u smaller than 0
             address_mode_v: wgpu::AddressMode::ClampToEdge, // same thing but for v
@@ -226,8 +160,8 @@ impl Renderer2D {
         })
     }
     
-    fn create_texture_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
-        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+    fn create_texture_bind_group_layout(ctx: &RenderContext) -> wgpu::BindGroupLayout {
+        ctx.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("amazing label for a bind group layout"),
             entries: &[
                 wgpu::BindGroupLayoutEntry {
@@ -253,12 +187,12 @@ impl Renderer2D {
     }
 
     fn create_texture_bind_group(
-        device: &wgpu::Device, 
+        ctx: &RenderContext, 
         bind_group_layout: &wgpu::BindGroupLayout, 
         texture_views: &[&wgpu::TextureView], 
         sampler: &wgpu::Sampler,
     ) -> wgpu::BindGroup {
-        device.create_bind_group(&wgpu::BindGroupDescriptor {
+        ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("texture bind group"),
             layout: bind_group_layout,
             entries: &[
@@ -274,10 +208,10 @@ impl Renderer2D {
         })
     }
 
-    fn create_projection_bind_group_layout(device: &wgpu::Device) -> wgpu::BindGroupLayout {
+    fn create_projection_bind_group_layout(ctx: &RenderContext) -> wgpu::BindGroupLayout {
         let projection_matrix_binding_size = std::num::NonZeroU64::new(64); // 4x4 floats = 64 bytes
 
-        device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
+        ctx.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
             label: Some("projection bind group layout"),
             entries: &[
                 wgpu::BindGroupLayoutEntry {
@@ -295,11 +229,11 @@ impl Renderer2D {
     }
 
     fn create_projection_bind_group(
-        device: &wgpu::Device, 
+        ctx: &RenderContext, 
         bind_group_layout: &wgpu::BindGroupLayout,
         projection_matrix_buffer: &wgpu::Buffer
     ) -> wgpu::BindGroup {
-        device.create_bind_group(&wgpu::BindGroupDescriptor {
+        ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
             label: Some("projection bind group"),
             layout: bind_group_layout,
             entries: &[wgpu::BindGroupEntry {
@@ -311,16 +245,16 @@ impl Renderer2D {
             })
     }
 
-    fn create_render_pipeline_layout(device: &wgpu::Device, texture_bind_group_layout: &wgpu::BindGroupLayout, projection_bind_group_layout: &wgpu::BindGroupLayout) -> wgpu::PipelineLayout {
-        device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
+    fn create_render_pipeline_layout(ctx: &RenderContext, texture_bind_group_layout: &wgpu::BindGroupLayout, projection_bind_group_layout: &wgpu::BindGroupLayout) -> wgpu::PipelineLayout {
+        ctx.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("epic render pipeline layout"),
             bind_group_layouts: &[Some(texture_bind_group_layout), Some(projection_bind_group_layout)],
             immediate_size: 0,
         })
     }
 
-    fn create_render_pipeline(device: &wgpu::Device, render_pipeline_layout: &wgpu::PipelineLayout, shader: &wgpu::ShaderModule, fragment_entry: &str, surface_format: wgpu::TextureFormat) -> wgpu::RenderPipeline {
-        device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
+    fn create_render_pipeline(ctx: &RenderContext, render_pipeline_layout: &wgpu::PipelineLayout, shader: &wgpu::ShaderModule, fragment_entry: &str) -> wgpu::RenderPipeline {
+        ctx.device.create_render_pipeline(&wgpu::RenderPipelineDescriptor {
             label: Some("epic render pipeline"),
             layout: Some(render_pipeline_layout),
             vertex: wgpu::VertexState { module: shader, entry_point: Some("vs_main"), buffers: &[Vertex2D::desc(), InstanceData::desc()], compilation_options: Default::default() },
@@ -328,7 +262,7 @@ impl Renderer2D {
                 module: shader,
                 entry_point: Some(fragment_entry),
                 targets: &[Some(wgpu::ColorTargetState {
-                    format: surface_format,
+                    format: ctx.config.format,
                     blend: Some(wgpu::BlendState::ALPHA_BLENDING),
                     write_mask: wgpu::ColorWrites::ALL,
                 })],
@@ -354,38 +288,9 @@ impl Renderer2D {
         })
     }
 
-    // pub fn create_transform_buffer(device: &wgpu::Device) -> wgpu::Buffer {
-    //     let initial_transform = Transform {
-    //         offset: [0.0, 0.0], // initalise at the top left corner
-    //         scale: [1.0, 1.0],  // unscaled
-    //         rotation: 0.0,      // no rotation
-    //         _padding: 0.0,      // i know...
-    //     };
-
-    //     device.create_buffer_init(
-    //         &wgpu::util::BufferInitDescriptor {
-    //             label: Some("initial transform buffer"),
-    //             contents: bytemuck::bytes_of(&initial_transform),
-    //             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-    //         }
-    //     )
-    // }
-
-    // pub fn create_tint_color_buffer(device: &wgpu::Device) -> wgpu::Buffer {
-    //     let neutral_tint = Tint { color: [1.0, 1.0, 1.0, 1.0] }; // multiply by 1 so no effect on RGBA values
-
-    //     device.create_buffer_init(
-    //         &wgpu::util::BufferInitDescriptor {
-    //             label: Some("neutral tint color buffer"),
-    //             contents: bytemuck::bytes_of(&neutral_tint),
-    //             usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-    //         }
-    //     )
-    // }
-
-    fn create_projection_matrix_buffer(device: &wgpu::Device, surface_width: u32, surface_height: u32) -> wgpu::Buffer {
-        let w = surface_width as f32;
-        let h = surface_height as f32;
+    fn create_projection_matrix_buffer(ctx: &RenderContext) -> wgpu::Buffer {
+        let w = ctx.config.width as f32;
+        let h = ctx.config.height as f32;
         let projection_matrix: [[f32; 4]; 4] = [
             // column 0
             [ 2.0 / w, 0.0,      0.0, 0.0 ],
@@ -398,7 +303,7 @@ impl Renderer2D {
         ];
 
 
-        device.create_buffer_init(
+        ctx.device.create_buffer_init(
             &wgpu::util::BufferInitDescriptor {
                 label: Some("initial transform buffer"),
                 contents: bytemuck::bytes_of(&projection_matrix),
@@ -407,7 +312,7 @@ impl Renderer2D {
         )
     }
 
-    fn create_quad_vertices(device: &wgpu::Device) -> (wgpu::Buffer, wgpu::Buffer) {
+    fn create_quad_vertices(ctx: &RenderContext) -> (wgpu::Buffer, wgpu::Buffer) {
         let vertices = [
             Vertex2D { position: [0.0, 0.0], uv: [0.0, 0.0] },                       // top left
             Vertex2D { position: [1.0, 0.0], uv: [1.0, 0.0] },              // top right
@@ -415,7 +320,7 @@ impl Renderer2D {
             Vertex2D { position: [1.0, 1.0], uv: [1.0, 1.0] },    // bottom right
         ];
 
-        let vertex_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        let vertex_buffer = ctx.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("epic vertex buffer containg a quad"),
             contents: bytemuck::cast_slice(&vertices),
             usage: wgpu::BufferUsages::VERTEX,
@@ -427,7 +332,7 @@ impl Renderer2D {
             2, 1, 3,   // second triangle
         ];
 
-        let index_buffer = device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
+        let index_buffer = ctx.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
             label: Some("image renderer index buffer"),
             contents: bytemuck::cast_slice(&indices),
             usage: wgpu::BufferUsages::INDEX,
@@ -501,5 +406,65 @@ impl Renderer2D {
         );
 
         texture
+    }
+
+    pub fn new(ctx: &RenderContext) -> Self {
+        let shader = ctx.device.create_shader_module(wgpu::ShaderModuleDescriptor {
+            label: Some("image renderer shader module"),
+            source: wgpu::ShaderSource::Wgsl(include_str!("../../shaders/image.wgsl").into()),
+        });
+
+        let dummy_texture = diffuse_texture::create_dummy_texture(ctx);
+        let dummy_texture_view = dummy_texture.create_view(&wgpu::TextureViewDescriptor::default());
+
+        let mut texture_views = Vec::with_capacity(MAX_TEXTURES as usize);
+        
+        for _ in 0..MAX_TEXTURES {
+            texture_views.push(dummy_texture_view.clone());
+        }
+
+        let next_texture_slot = 1; // 0 is dummy
+
+        let texture_refs: Vec<&wgpu::TextureView> = texture_views.iter().collect();
+
+        let sampler = Self::create_sampler(ctx);
+
+        let projection_matrix_buffer = Self::create_projection_matrix_buffer(ctx);
+
+        let texture_bind_group_layout = Self::create_texture_bind_group_layout(ctx);
+        let texture_bind_group = Self::create_texture_bind_group(ctx, &texture_bind_group_layout, &texture_refs, &sampler);
+        
+        let projection_bind_group_layout = Self::create_projection_bind_group_layout(ctx);
+        let projection_bind_group = Self::create_projection_bind_group(ctx, &projection_bind_group_layout, &projection_matrix_buffer);
+                
+        let render_pipeline_layout = Self::create_render_pipeline_layout(ctx, &texture_bind_group_layout, &projection_bind_group_layout);
+        
+        let render_pipeline_solid = Self::create_render_pipeline(ctx, &render_pipeline_layout, &shader, "fs_solid");
+        let render_pipeline_textured = Self::create_render_pipeline(ctx, &render_pipeline_layout, &shader, "fs_textured");
+
+        let (quad_vertex_buffer, quad_index_buffer) = Self::create_quad_vertices(ctx);
+
+        let max_instances = MAX_INSTANCES as usize;
+        
+        let instance_buffer = ctx.device.create_buffer(&wgpu::BufferDescriptor {
+            label: Some("instance buffer"),
+            size: (max_instances * std::mem::size_of::<InstanceData>()) as u64,
+            usage: wgpu::BufferUsages::VERTEX | wgpu::BufferUsages::COPY_DST,
+            mapped_at_creation: false,
+        });
+        
+        Self {
+            texture_views,
+            next_texture_slot,
+            sampler,
+            texture_bind_group_layout,
+            texture_bind_group,
+            projection_bind_group,
+            render_pipeline_solid,
+            render_pipeline_textured,
+            quad_vertex_buffer,
+            quad_index_buffer,
+            instance_buffer,
+        }
     }
 }

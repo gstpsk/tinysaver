@@ -5,6 +5,7 @@ mod vertex2d;
 mod vertex3d;
 mod instance_data;
 mod mesh;
+mod diffuse_texture;
 
 pub use renderer2d::{Renderer2D};
 pub use renderer3d::Renderer3D;
