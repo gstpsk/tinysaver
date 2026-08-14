@@ -13,10 +13,11 @@ struct VsOut {
     @location(0) normal: vec3<f32>,
     @location(1) face_normal: vec3<f32>,
     @location(2) in_position: vec3<f32>,
+    @location(3) uv: vec2<f32>,
 };
 
 @vertex
-fn vs_main(@location(0) in_position: vec3<f32>, @location(1) in_normal: vec3<f32>) -> VsOut {
+fn vs_main(@location(0) in_position: vec3<f32>, @location(1) in_normal: vec3<f32>, @location(2) in_uv: vec2<f32>) -> VsOut {
     var out: VsOut;
     let world_pos =
         transform.model * vec4<f32>(in_position, 1.0);
@@ -32,26 +33,24 @@ fn vs_main(@location(0) in_position: vec3<f32>, @location(1) in_normal: vec3<f32
 
     out.in_position = in_position;
 
+    out.uv = in_uv;
+
     return out;
+}
+
+@group(1) @binding(0)
+var my_texture: texture_2d<f32>;
+@group(1) @binding(1)
+var my_sampler: sampler;
+
+@fragment
+fn fs_main(in: VsOut) -> @location(0) vec4<f32> {
+    //return vec4<f32>(1.0, 0.0, 0.0, 1.0);
+    return textureSample(my_texture, my_sampler, in.uv);
 }
 
 @fragment
 fn fs_main2(
-    @builtin(position) position: vec4<f32>,
-    @location(0) normal: vec3<f32>,
-    @location(1) face_normal: vec3<f32>
-) -> @location(0) vec4<f32> {
-
-    return vec4<f32>(
-        position.x / 2560.0,
-        position.y / 2560.0,
-        position.z / 2560.0,
-        1.0
-    );
-}
-
-@fragment
-fn fs_main(
     @location(0) normal: vec3<f32>,
     @location(1) face_normal: vec3<f32>
 ) -> @location(0) vec4<f32> {

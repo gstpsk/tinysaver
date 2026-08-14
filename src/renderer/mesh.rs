@@ -10,39 +10,39 @@ impl Mesh {
     pub fn cube() -> Self {
         let vertices = vec![
             // front face
-            Vertex3D { position: [-0.5,  0.5,  0.5], normal: [0.0, 0.0, 1.0] }, // top left
-            Vertex3D { position: [ 0.5,  0.5,  0.5], normal: [0.0, 0.0, 1.0] }, // top right
-            Vertex3D { position: [-0.5, -0.5,  0.5], normal: [0.0, 0.0, 1.0] }, // bottom left
-            Vertex3D { position: [ 0.5, -0.5,  0.5], normal: [0.0, 0.0, 1.0] }, // bottom right
+            Vertex3D { position: [-0.5,  0.5,  0.5], normal: [0.0, 0.0, 1.0], uv: [0.0, 0.0] }, // top left
+            Vertex3D { position: [ 0.5,  0.5,  0.5], normal: [0.0, 0.0, 1.0], uv: [1.0, 0.0] }, // top right
+            Vertex3D { position: [-0.5, -0.5,  0.5], normal: [0.0, 0.0, 1.0], uv: [0.0, 1.0] }, // bottom left
+            Vertex3D { position: [ 0.5, -0.5,  0.5], normal: [0.0, 0.0, 1.0], uv: [1.0, 1.0] }, // bottom right
             // back face
-            Vertex3D { position: [-0.5,  0.5, -0.5], normal: [0.0, 0.0, -1.0] }, // top left
-            Vertex3D { position: [ 0.5,  0.5, -0.5], normal: [0.0, 0.0, -1.0] }, // top right
-            Vertex3D { position: [-0.5, -0.5, -0.5], normal: [0.0, 0.0, -1.0] }, // bottom left
-            Vertex3D { position: [ 0.5, -0.5, -0.5], normal: [0.0, 0.0, -1.0] }, // bottom right
+            Vertex3D { position: [-0.5,  0.5, -0.5], normal: [0.0, 0.0, -1.0], uv: [0.0, 0.0] }, // top left
+            Vertex3D { position: [ 0.5,  0.5, -0.5], normal: [0.0, 0.0, -1.0], uv: [1.0, 0.0] }, // top right
+            Vertex3D { position: [-0.5, -0.5, -0.5], normal: [0.0, 0.0, -1.0], uv: [0.0, 1.0] }, // bottom left
+            Vertex3D { position: [ 0.5, -0.5, -0.5], normal: [0.0, 0.0, -1.0], uv: [1.0, 1.0] }, // bottom right
 
             // left face
-            Vertex3D { position: [-0.5,  0.5, -0.5], normal: [-1.0, 0.0, 0.0] },
-            Vertex3D { position: [-0.5,  0.5,  0.5], normal: [-1.0, 0.0, 0.0] },
-            Vertex3D { position: [-0.5, -0.5, -0.5], normal: [-1.0, 0.0, 0.0] },
-            Vertex3D { position: [-0.5, -0.5,  0.5], normal: [-1.0, 0.0, 0.0] },
+            Vertex3D { position: [-0.5,  0.5, -0.5], normal: [-1.0, 0.0, 0.0], uv: [0.0, 0.0] },
+            Vertex3D { position: [-0.5,  0.5,  0.5], normal: [-1.0, 0.0, 0.0], uv: [1.0, 0.0] },
+            Vertex3D { position: [-0.5, -0.5, -0.5], normal: [-1.0, 0.0, 0.0], uv: [0.0, 1.0] },
+            Vertex3D { position: [-0.5, -0.5,  0.5], normal: [-1.0, 0.0, 0.0], uv: [1.0, 1.0] },
 
             // right face
-            Vertex3D { position: [ 0.5,  0.5,  0.5], normal: [1.0, 0.0, 0.0] },
-            Vertex3D { position: [ 0.5,  0.5, -0.5], normal: [1.0, 0.0, 0.0] },
-            Vertex3D { position: [ 0.5, -0.5,  0.5], normal: [1.0, 0.0, 0.0] },
-            Vertex3D { position: [ 0.5, -0.5, -0.5], normal: [1.0, 0.0, 0.0] },
+            Vertex3D { position: [ 0.5,  0.5,  0.5], normal: [1.0, 0.0, 0.0], uv: [0.0, 0.0] },
+            Vertex3D { position: [ 0.5,  0.5, -0.5], normal: [1.0, 0.0, 0.0], uv: [1.0, 0.0] },
+            Vertex3D { position: [ 0.5, -0.5,  0.5], normal: [1.0, 0.0, 0.0], uv: [0.0, 1.0] },
+            Vertex3D { position: [ 0.5, -0.5, -0.5], normal: [1.0, 0.0, 0.0], uv: [1.0, 1.0] },
 
             // top face
-            Vertex3D { position: [-0.5,  0.5, -0.5], normal: [0.0, 1.0, 0.0] },
-            Vertex3D { position: [ 0.5,  0.5, -0.5], normal: [0.0, 1.0, 0.0] },
-            Vertex3D { position: [-0.5,  0.5,  0.5], normal: [0.0, 1.0, 0.0] },
-            Vertex3D { position: [ 0.5,  0.5,  0.5], normal: [0.0, 1.0, 0.0] },
+            Vertex3D { position: [-0.5,  0.5, -0.5], normal: [0.0, 1.0, 0.0], uv: [0.0, 0.0] },
+            Vertex3D { position: [ 0.5,  0.5, -0.5], normal: [0.0, 1.0, 0.0], uv: [1.0, 0.0] },
+            Vertex3D { position: [-0.5,  0.5,  0.5], normal: [0.0, 1.0, 0.0], uv: [0.0, 1.0] },
+            Vertex3D { position: [ 0.5,  0.5,  0.5], normal: [0.0, 1.0, 0.0], uv: [1.0, 1.0] },
 
             // bottom face
-            Vertex3D { position: [-0.5, -0.5,  0.5], normal: [0.0, -1.0, 0.0] },
-            Vertex3D { position: [ 0.5, -0.5,  0.5], normal: [0.0, -1.0, 0.0] },
-            Vertex3D { position: [-0.5, -0.5, -0.5], normal: [0.0, -1.0, 0.0] },
-            Vertex3D { position: [ 0.5, -0.5, -0.5], normal: [0.0, -1.0, 0.0] },
+            Vertex3D { position: [-0.5, -0.5,  0.5], normal: [0.0, -1.0, 0.0], uv: [0.0, 0.0] },
+            Vertex3D { position: [ 0.5, -0.5,  0.5], normal: [0.0, -1.0, 0.0], uv: [1.0, 0.0] },
+            Vertex3D { position: [-0.5, -0.5, -0.5], normal: [0.0, -1.0, 0.0], uv: [0.0, 1.0] },
+            Vertex3D { position: [ 0.5, -0.5, -0.5], normal: [0.0, -1.0, 0.0], uv: [1.0, 1.0] },
         ];
 
         let indices: Vec<u16> = vec![

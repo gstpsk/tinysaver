@@ -16,12 +16,13 @@ pub struct RotatingCubeAnimation {
     y_rotation: bool,
     z_rotation: bool,
     wireframe_mode: bool,
+    textured_mode: bool,
 }
 
 impl RotatingCubeAnimation {
         pub fn new(ctx: &RenderContext) -> Self {
         let renderer =
-            Renderer3D::new(&ctx.device, ctx.config.format, ctx.config.width, ctx.config.height);
+            Renderer3D::new(ctx);
 
         // let color = (255, 255, 255);
         // let alpha = 255;
@@ -38,6 +39,7 @@ impl RotatingCubeAnimation {
             y_rotation: false,
             z_rotation: false,
             wireframe_mode: false,
+            textured_mode: true,
         }
     }
 }
@@ -69,7 +71,7 @@ impl Animation for RotatingCubeAnimation {
         encoder: &mut wgpu::CommandEncoder,
         target: &wgpu::TextureView,
     ) {
-        self.renderer.render_mesh(encoder, target, &ctx.depth_texture.view, &self.cube, self.wireframe_mode);
+        self.renderer.render_mesh(encoder, target, &ctx.depth_texture.view, &self.cube, self.wireframe_mode, self.textured_mode);
     }
 
     fn on_key(&mut self, key: KeyEvent) {
