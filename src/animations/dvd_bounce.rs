@@ -1,5 +1,3 @@
-use wgpu::{self, wgc::device::queue};
-
 use crate::{animation::Animation, drawable::{Drawable, Material, Shape}, renderer::RenderContext, utils};
 use crate::renderer::{Renderer2D, InstanceBatch};
 
@@ -61,30 +59,28 @@ pub struct DvdBounceAnimation {
     speed_x: f32,
     speed_y: f32,
     current_color: Color,
-    surface_width: i32,
-    surface_height: i32,
 }
 
 impl DvdBounceAnimation {
     pub fn new(
         ctx: &RenderContext,
         image_data: &[u8],
-        image_width: i32,
-        image_height: i32,
+        image_width: u32,
+        image_height: u32,
     ) -> Self {
-        if image_width >= ctx.config.width as i32 || image_height >= ctx.config.height as i32 {
+        if image_width >= ctx.config.width || image_height >= ctx.config.height {
             panic!("Tried to create DvdBounceAnimation with too large image");
         }
 
-        if image_width < 0 || image_height < 0 || surface_width < 0 || surface_height < 0 {
+        if image_width < 0 || image_height < 0 || ctx.config.width < 0 || ctx.config.height < 0 {
             panic!("weird shit");
         }
 
         let mut renderer = Renderer2D::new(ctx);
 
         let texture = Renderer2D::create_texture_from_rgba8(
-            device,
-            queue,
+            &ctx.device,
+            &ctx.queue,
             image_width as u32,
             image_height as u32,
             image_data,
@@ -93,12 +89,12 @@ impl DvdBounceAnimation {
         let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
         let shape = Shape::Rectangle { width: image_width as f32, height: image_height as f32 };
-        let (x, y) = utils::get_random_position(surface_width - image_width, surface_height - image_height);
+        let (x, y) = utils::get_random_position(ctx.config.width - image_width, ctx.config.height - image_height);
 
         let current_color = Color::random();
         
         let material = Material::Textured { 
-            texture_index: renderer.add_texture_view(device, texture_view)
+            texture_index: renderer.add_texture_view(&ctx.device, texture_view)
         };
         
         let drawable = Drawable::new(shape, x as f32, y as f32, current_color.rgb(), 255, material);
@@ -114,15 +110,13 @@ impl DvdBounceAnimation {
             speed_x,
             speed_y,
             current_color,
-            surface_width,
-            surface_height,
         }
     }
 
     // feels a bit weird we have to update the position in two places
     // maybe this could be improved...
-    pub fn update(&mut self) {
-        self.update_position();
+    pub fn update(&mut self, ctx: &RenderContext) {
+        self.update_position(ctx);
 
         //self.drawable.set_position(queue, self.x as u32, self.y as u32);
     }
@@ -147,13 +141,13 @@ impl DvdBounceAnimation {
     }
 
     // invert speed if the image exceeds surface width after computation
-    fn handle_collision(&mut self) -> bool {
+    fn handle_collision(&mut self, ctx: &RenderContext) -> bool {
         let mut bounced = false;
 
 
         // right
-        if self.drawable.x + self.drawable.shape.width() >= self.surface_width as f32 {
-            self.drawable.x = self.surface_width as f32 - self.drawable.shape.width();
+        if self.drawable.x + self.drawable.shape.width() >= ctx.config.width as f32 {
+            self.drawable.x = ctx.config.width as f32 - self.drawable.shape.width();
             self.speed_x = -self.speed_x;
             bounced = true;
         }
@@ -166,8 +160,8 @@ impl DvdBounceAnimation {
         }
 
         // bottom wall
-        if (self.drawable.y + self.drawable.shape.height() + self.speed_y) >= self.surface_height as f32 {
-            self.drawable.y = self.surface_height as f32 - self.drawable.shape.height();
+        if (self.drawable.y + self.drawable.shape.height() + self.speed_y) >= ctx.config.height as f32 {
+            self.drawable.y = ctx.config.height as f32 - self.drawable.shape.height();
             self.speed_y = -self.speed_y;
             bounced = true;
         }
@@ -183,13 +177,13 @@ impl DvdBounceAnimation {
         bounced
     }
 
-    fn update_position(&mut self) {
+    fn update_position(&mut self, ctx: &RenderContext) {
         // move
         self.drawable.x += self.speed_x as f32;
         self.drawable.y += self.speed_y as f32;
 
         // fix overshoot and bounce
-        if self.handle_collision() {
+        if self.handle_collision(ctx) {
             self.current_color = self.current_color.next();
             self.drawable.set_color(self.current_color.rgb());
         }
@@ -208,7 +202,7 @@ impl DvdBounceAnimation {
 
 impl Animation for DvdBounceAnimation {
     fn update(&mut self, ctx: &RenderContext) {
-        self.update();
+        self.update(ctx);
     }
 
     fn render(&self, ctx: &RenderContext, encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView) {

@@ -11,25 +11,11 @@ struct Star {
 pub struct SpaceFlightAnimation {
     renderer: Renderer2D,
     drawables: Vec<Star>,
-    surface_width: i32,
-    surface_height: i32,
 }
 
 impl SpaceFlightAnimation {
-    pub fn new(
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        surface_format: wgpu::TextureFormat,
-        surface_width: i32,
-        surface_height: i32,
-    ) -> Self {
-        let renderer = Renderer2D::new(
-            device,
-            queue,
-            surface_format,
-            surface_width as u32,
-            surface_height as u32,
-        );
+    pub fn new(ctx: &RenderContext) -> Self {
+        let renderer = Renderer2D::new(ctx);
 
         let mut drawables: Vec<Star> = Vec::new();
 
@@ -39,7 +25,7 @@ impl SpaceFlightAnimation {
         };
 
         for _ in 0..50000 {
-            let (x, y) = utils::get_random_position(surface_width - rect.width() as i32, surface_height - rect.height() as i32);
+            let (x, y) = utils::get_random_position(ctx.config.width - rect.width() as u32, ctx.config.height - rect.height() as u32);
             
             let z = 1.0 - (rand::random::<f32>() % 0.95);
 
@@ -79,21 +65,19 @@ impl SpaceFlightAnimation {
 
         Self {
             renderer,
-            drawables,
-            surface_width,
-            surface_height            
+            drawables,        
         }
     }
 
-    pub fn update(&mut self) {
-        self.update_position();
+    pub fn update(&mut self, ctx: &RenderContext) {
+        self.update_position(ctx);
         self.update_appearance();
     }
 
-    fn update_position(&mut self) {
+    fn update_position(&mut self, ctx: &RenderContext) {
         // compute center
-        let cx = self.surface_width as f32 / 2.0;
-        let cy = self.surface_height as f32 / 2.0;
+        let cx = ctx.config.width as f32 / 2.0;
+        let cy = ctx.config.height as f32 / 2.0;
 
         for star in &mut self.drawables {
             // vector pointing to drawable
@@ -110,12 +94,12 @@ impl SpaceFlightAnimation {
             star.shape.y += dir_y * speed;
 
             // respawn if off-screen
-            if star.shape.x < 0.0 || star.shape.x > self.surface_width as f32 ||
-            star.shape.y < 0.0 || star.shape.y > self.surface_height as f32 {
+            if star.shape.x < 0.0 || star.shape.x > ctx.config.width as f32 ||
+            star.shape.y < 0.0 || star.shape.y > ctx.config.height as f32 {
 
                 let (rx, ry) = utils::get_random_position(
-                    self.surface_width,
-                    self.surface_height
+                    ctx.config.width,
+                    ctx.config.height
                 );
 
                 star.shape.x = rx as f32;
@@ -162,7 +146,7 @@ impl SpaceFlightAnimation {
 
 impl Animation for SpaceFlightAnimation {
     fn update(&mut self, ctx: &RenderContext) {
-        self.update();
+        self.update(ctx);
     }
 
     fn render(&self, ctx: &RenderContext, encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView) {

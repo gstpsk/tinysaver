@@ -14,7 +14,7 @@ impl DvdBounceAnimation2 {
         pub fn new(ctx: &RenderContext) -> Self {
         let renderer = Renderer3D::new(ctx);
 
-        let mesh = Mesh::rectangle();
+        let mesh = Mesh::cube();
         let rectangle = GpuMesh::from_mesh(&ctx.device, &mesh);
         let model = glam::Mat4::from_translation(glam::vec3(0.0, 0.0, 0.0));
 

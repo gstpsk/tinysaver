@@ -100,28 +100,16 @@ impl ApplicationHandler for App {
 
         let animation: Box<dyn Animation> = match self.selected_animation.unwrap() {
             AnimationType::Dvd => Box::new(DvdBounceAnimation::new(
-                &ctx.device,
-                &ctx.queue,
+                &ctx,
                 &image_data,
-                image_width as i32,
-                image_height as i32,
-                ctx.config.format,
-                ctx.config.width as i32,
-                ctx.config.height as i32,
+                image_width,
+                image_height,
             )),
             AnimationType::Space => Box::new(SpaceFlightAnimation::new(
-                &ctx.device,
-                &ctx.queue,
-                ctx.config.format,
-                ctx.config.width as i32,
-                ctx.config.height as i32,
+                &ctx
             )),
             AnimationType::Wireframe => Box::new(WireframeAnimation::new(
-                &ctx.device,
-                &ctx.queue,
-                ctx.config.format,
-                ctx.config.width,
-                ctx.config.height,
+                &ctx
             )),
             AnimationType::RotatingCube => Box::new(RotatingCubeAnimation::new(
                 &ctx

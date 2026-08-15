@@ -161,8 +161,6 @@ pub struct WireframeAnimation {
     cube: Cube,
     point_drawables: Vec<Drawable>,
     line_drawables: Vec<Drawable>,
-    surface_width: u32,
-    surface_height: u32,
     angle_x: f32,
     angle_y: f32,
     angle_z: f32,
@@ -170,15 +168,9 @@ pub struct WireframeAnimation {
 }
 
 impl WireframeAnimation {
-    pub fn new(
-        device: &wgpu::Device,
-        queue: &wgpu::Queue,
-        surface_format: wgpu::TextureFormat,
-        surface_width: u32,
-        surface_height: u32,
-    ) -> Self {
+    pub fn new(ctx: &RenderContext) -> Self {
         let renderer =
-            Renderer2D::new(device, queue, surface_format, surface_width, surface_height);
+            Renderer2D::new(ctx);
 
         let color = (255, 255, 255);
         let alpha = 255;
@@ -204,8 +196,6 @@ impl WireframeAnimation {
             cube,
             point_drawables,
             line_drawables,
-            surface_width,
-            surface_height,
             angle_x: 0.0,
             angle_y: 0.0,
             angle_z: 0.0,
@@ -248,12 +238,12 @@ impl WireframeAnimation {
         (screen_x, screen_y)
     }
 
-    fn update(&mut self) {
+    fn update(&mut self, ctx: &RenderContext) {
         self.angle_y += 0.01;
         
         //self.dz += 0.01;
 
-        let aspect_ratio = self.surface_height as f32 / self.surface_width as f32;
+        let aspect_ratio = ctx.config.height as f32 / ctx.config.width as f32;
 
         // create screen positions array with length of amount of vertices in cube
         // these live in screenspace, so width x height
@@ -271,7 +261,7 @@ impl WireframeAnimation {
             let (px, py) = new_v.project(aspect_ratio);
 
             // now convert to screen space
-            let (sx, sy) = Self::to_screen(px, py, self.surface_width, self.surface_height);
+            let (sx, sy) = Self::to_screen(px, py, ctx.config.width, ctx.config.height);
 
             // store this position (to be used by the edges later)
             screen_positions[i] = (sx, sy, new_v.z);
@@ -303,7 +293,7 @@ impl WireframeAnimation {
 
 impl Animation for WireframeAnimation {
     fn update(&mut self, ctx: &RenderContext) {
-        self.update();
+        self.update(ctx);
     }
 
     fn render(
