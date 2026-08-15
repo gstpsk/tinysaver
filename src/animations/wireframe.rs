@@ -209,6 +209,8 @@ impl WireframeAnimation {
         encoder: &mut wgpu::CommandEncoder,
         target: &wgpu::TextureView,
     ) {
+        self.renderer.update_projection_matrix_buffer(ctx);
+
         let mut instance_batch = InstanceBatch {
             solid: Vec::new(),
             textured: Vec::new(),

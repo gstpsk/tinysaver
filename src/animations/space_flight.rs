@@ -121,6 +121,8 @@ impl SpaceFlightAnimation {
     }
 
     pub fn render(&self, ctx: &RenderContext, encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView) {
+        self.renderer.update_projection_matrix_buffer(ctx);
+
         let mut instance_batch = InstanceBatch {
             solid: Vec::with_capacity(self.drawables.len()),
             textured: Vec::new(),
