@@ -17,6 +17,7 @@ pub struct Renderer2D {
     pub sampler: wgpu::Sampler,
     pub texture_bind_group_layout: wgpu::BindGroupLayout,
     pub texture_bind_group: wgpu::BindGroup,
+    pub projection_matrix_buffer: wgpu::Buffer,
     pub projection_bind_group: wgpu::BindGroup,
     render_pipeline_solid: wgpu::RenderPipeline,
     render_pipeline_textured: wgpu::RenderPipeline,
@@ -288,30 +289,6 @@ impl Renderer2D {
         })
     }
 
-    fn create_projection_matrix_buffer(ctx: &RenderContext) -> wgpu::Buffer {
-        let w = ctx.config.width as f32;
-        let h = ctx.config.height as f32;
-        let projection_matrix: [[f32; 4]; 4] = [
-            // column 0
-            [ 2.0 / w, 0.0,      0.0, 0.0 ],
-            // column 1
-            [ 0.0,    -2.0 / h,  0.0, 0.0 ],
-            // column 2
-            [ 0.0,     0.0,      1.0, 0.0 ],
-            // column 3
-            [ -1.0,    1.0,      0.0, 1.0 ],
-        ];
-
-
-        ctx.device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("initial transform buffer"),
-                contents: bytemuck::bytes_of(&projection_matrix),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            }
-        )
-    }
-
     fn create_quad_vertices(ctx: &RenderContext) -> (wgpu::Buffer, wgpu::Buffer) {
         let vertices = [
             Vertex2D { position: [0.0, 0.0], uv: [0.0, 0.0] },                       // top left
@@ -429,11 +406,11 @@ impl Renderer2D {
 
         let sampler = Self::create_sampler(ctx);
 
-        let projection_matrix_buffer = Self::create_projection_matrix_buffer(ctx);
-
+        
         let texture_bind_group_layout = Self::create_texture_bind_group_layout(ctx);
         let texture_bind_group = Self::create_texture_bind_group(ctx, &texture_bind_group_layout, &texture_refs, &sampler);
         
+        let projection_matrix_buffer = Self::create_projection_matrix_buffer(ctx);
         let projection_bind_group_layout = Self::create_projection_bind_group_layout(ctx);
         let projection_bind_group = Self::create_projection_bind_group(ctx, &projection_bind_group_layout, &projection_matrix_buffer);
                 
@@ -459,6 +436,7 @@ impl Renderer2D {
             sampler,
             texture_bind_group_layout,
             texture_bind_group,
+            projection_matrix_buffer,
             projection_bind_group,
             render_pipeline_solid,
             render_pipeline_textured,
@@ -466,5 +444,48 @@ impl Renderer2D {
             quad_index_buffer,
             instance_buffer,
         }
+    }
+
+    fn create_projection_matrix_buffer(ctx: &RenderContext) -> wgpu::Buffer {
+        let w = ctx.config.width as f32;
+        let h = ctx.config.height as f32;
+        
+        let projection_matrix: [[f32; 4]; 4] = [
+            // column 0
+            [ 2.0 / w, 0.0,      0.0, 0.0 ],
+            // column 1
+            [ 0.0,    -2.0 / h,  0.0, 0.0 ],
+            // column 2
+            [ 0.0,     0.0,      1.0, 0.0 ],
+            // column 3
+            [ -1.0,    1.0,      0.0, 1.0 ],
+        ];
+
+
+        ctx.device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("initial transform buffer"),
+                contents: bytemuck::bytes_of(&projection_matrix),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            }
+        )
+    }
+
+    pub fn update_projection_matrix_buffer(&self, ctx: &RenderContext) {
+        let w = ctx.config.width as f32;
+        let h = ctx.config.height as f32;
+
+        let projection_matrix: [[f32; 4]; 4] = [
+            [ 2.0 / w, 0.0,      0.0, 0.0 ],
+            [ 0.0,    -2.0 / h,  0.0, 0.0 ],
+            [ 0.0,     0.0,      1.0, 0.0 ],
+            [ -1.0,    1.0,      0.0, 1.0 ],
+        ];
+
+        ctx.queue.write_buffer(
+            &self.projection_matrix_buffer,
+            0,
+            bytemuck::bytes_of(&projection_matrix),
+        );
     }
 }

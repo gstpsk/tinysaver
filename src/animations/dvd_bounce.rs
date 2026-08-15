@@ -122,6 +122,8 @@ impl DvdBounceAnimation {
     }
 
     pub fn render(&self, ctx: &RenderContext, encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView) {
+        self.renderer.update_projection_matrix_buffer(ctx);
+
         let mut instance_batch = InstanceBatch {
             solid: Vec::new(),
             textured: Vec::with_capacity(1),
@@ -143,7 +145,6 @@ impl DvdBounceAnimation {
     // invert speed if the image exceeds surface width after computation
     fn handle_collision(&mut self, ctx: &RenderContext) -> bool {
         let mut bounced = false;
-
 
         // right
         if self.drawable.x + self.drawable.shape.width() >= ctx.config.width as f32 {
