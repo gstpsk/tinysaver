@@ -3,13 +3,15 @@ use winit::keyboard::Key;
 use winit::keyboard::NamedKey;
 
 use crate::animation::Animation;
+use crate::animations::TextComponent;
+use crate::color;
 use crate::renderer::RenderContext;
 use crate::renderer::Renderer3D;
 use crate::renderer::Mesh;
 use crate::renderer::GpuMesh;
 
 pub struct RotatingCubeAnimation {
-    renderer: Renderer3D,
+    renderer3d: Renderer3D,
     cube: GpuMesh,
     model: glam::Mat4,
     x_rotation: bool,
@@ -17,22 +19,22 @@ pub struct RotatingCubeAnimation {
     z_rotation: bool,
     wireframe_mode: bool,
     textured_mode: bool,
+    text: TextComponent,
 }
 
 impl RotatingCubeAnimation {
         pub fn new(ctx: &RenderContext) -> Self {
-        let renderer =
-            Renderer3D::new(ctx);
-
-        // let color = (255, 255, 255);
-        // let alpha = 255;
-
+        let renderer3d = Renderer3D::new(ctx);
         let mesh = Mesh::cube();
         let cube = GpuMesh::from_mesh(&ctx.device, &mesh);
         let model = glam::Mat4::from_translation(glam::vec3(0.0, 0.0, -4.0));
 
+        const USAGE: &str = "Press 1 to enable x rotation\nPress 2 to enable y rotation\nPress 3 to enable z rotation\n\nPress Space to toggle wireframe mode";
+
+        let usage_text = TextComponent::new(ctx, USAGE, 2.0, color::Color::Cyan);
+
         Self {
-            renderer,
+            renderer3d,
             cube,
             model,
             x_rotation: false,
@@ -40,6 +42,7 @@ impl RotatingCubeAnimation {
             z_rotation: false,
             wireframe_mode: false,
             textured_mode: true,
+            text: usage_text,
         }
     }
 }
@@ -62,7 +65,7 @@ impl Animation for RotatingCubeAnimation {
             self.model = self.model * rot_z;
         }
 
-        self.renderer.update_transform(ctx, self.model);
+        self.renderer3d.update_transform(ctx, self.model);
     }
 
     fn render(
@@ -71,7 +74,8 @@ impl Animation for RotatingCubeAnimation {
         encoder: &mut wgpu::CommandEncoder,
         target: &wgpu::TextureView,
     ) {
-        self.renderer.render_mesh(encoder, target, &ctx.depth_texture.view, &self.cube, self.wireframe_mode, self.textured_mode);
+        self.renderer3d.render_mesh(encoder, target, &ctx.depth_texture.view, &self.cube, self.wireframe_mode, self.textured_mode);
+        self.text.render(ctx, encoder, target);
     }
 
     fn on_key(&mut self, key: KeyEvent) {

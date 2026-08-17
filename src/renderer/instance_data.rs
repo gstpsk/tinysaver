@@ -2,22 +2,24 @@
 #[derive(Copy, Clone, bytemuck::Pod, bytemuck::Zeroable)]
 pub struct InstanceData {
     pub position: [f32; 2],
-    pub scale: [f32; 2],
+    pub size: [f32; 2],
     pub rotation: f32,
     pub color: [f32; 4],
-    pub shape_type: u32,
     pub texture_index: u32,
+    pub instance_texture_uv_min: [f32; 2],
+    pub instance_texture_uv_max: [f32; 2],
 }
 
 impl InstanceData {
     pub fn desc() -> wgpu::VertexBufferLayout<'static> {
 
-        const POSITION_OFFSET: wgpu::BufferAddress = 0;
-        const SCALE_OFFSET: wgpu::BufferAddress = POSITION_OFFSET+ (size_of::<[f32; 2]>() as wgpu::BufferAddress);
-        const ROTATION_OFFSET: wgpu::BufferAddress = SCALE_OFFSET + (size_of::<[f32; 2]>() as wgpu::BufferAddress);
-        const COLOR_OFFSET: wgpu::BufferAddress = ROTATION_OFFSET + (size_of::<f32>() as wgpu::BufferAddress);
-        const SHAPE_TYPE_OFFSET: wgpu::BufferAddress = COLOR_OFFSET + (size_of::<[f32; 4]>() as wgpu::BufferAddress);
-        const TEXTURE_INDEX_OFFSET: wgpu::BufferAddress = SHAPE_TYPE_OFFSET + (size_of::<u32>() as wgpu::BufferAddress);
+        const POSITION_OFFSET: wgpu::BufferAddress          = 0;
+        const SIZE_OFFSET: wgpu::BufferAddress              = POSITION_OFFSET           + (size_of::<[f32; 2]>() as wgpu::BufferAddress);
+        const ROTATION_OFFSET: wgpu::BufferAddress          = SIZE_OFFSET               + (size_of::<[f32; 2]>() as wgpu::BufferAddress);
+        const COLOR_OFFSET: wgpu::BufferAddress             = ROTATION_OFFSET           + (size_of::<f32>() as wgpu::BufferAddress);
+        const TEXTURE_INDEX_OFFSET: wgpu::BufferAddress     = COLOR_OFFSET              + (size_of::<[f32; 4]>() as wgpu::BufferAddress);
+        const INSTANCE_MIN_UV_OFFSET: wgpu::BufferAddress   = TEXTURE_INDEX_OFFSET      + (size_of::<u32>() as wgpu::BufferAddress);
+        const INSTANCE_MAX_UV_OFFSET: wgpu::BufferAddress   = INSTANCE_MIN_UV_OFFSET    + (size_of::<[f32; 2]>() as wgpu::BufferAddress);
 
         const ATTRIBUTES: &[wgpu::VertexAttribute] = &[
             // position
@@ -26,35 +28,41 @@ impl InstanceData {
                 shader_location: 2,
                 format: wgpu::VertexFormat::Float32x2,
             },
-            // scale
+            // instance_size
             wgpu::VertexAttribute {
-                offset: SCALE_OFFSET,
+                offset: SIZE_OFFSET,
                 shader_location: 3,
                 format: wgpu::VertexFormat::Float32x2,
             },
-            // rotation
+            // instance_rotation
             wgpu::VertexAttribute {
                 offset: ROTATION_OFFSET,
                 shader_location: 4,
                 format: wgpu::VertexFormat::Float32,
             },
-            // color
+            // instance_color
             wgpu::VertexAttribute {
                 offset: COLOR_OFFSET,
                 shader_location: 5,
                 format: wgpu::VertexFormat::Float32x4,
             },
-            // shape_type
+            // instance_texture_index
             wgpu::VertexAttribute {
-                offset: SHAPE_TYPE_OFFSET,
+                offset: TEXTURE_INDEX_OFFSET,
                 shader_location: 6,
                 format: wgpu::VertexFormat::Uint32,
             },
-            // texture_index
+            // instance_texture_min_uv
             wgpu::VertexAttribute {
-                offset: TEXTURE_INDEX_OFFSET,
+                offset: INSTANCE_MIN_UV_OFFSET,
                 shader_location: 7,
-                format: wgpu::VertexFormat::Uint32,
+                format: wgpu::VertexFormat::Float32x2,
+            },
+            // instance_texture_max_uv
+            wgpu::VertexAttribute {
+                offset: INSTANCE_MAX_UV_OFFSET,
+                shader_location: 8,
+                format: wgpu::VertexFormat::Float32x2,
             },
         ];
 

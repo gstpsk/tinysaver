@@ -17,6 +17,7 @@ mod animations;
 mod drawable;
 mod renderer;
 mod utils;
+mod color;
 
 #[derive(Clone, Copy)]
 enum AnimationType {

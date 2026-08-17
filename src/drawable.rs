@@ -106,13 +106,6 @@ impl Drawable {
         self.alpha = alpha;
     }
 
-    pub fn shape_type(&self) -> u32 {
-        match self.shape {
-            Shape::Rectangle { .. } => 0,
-            Shape::Line { .. } => 1,
-        }
-    }
-
     pub fn texture_index(&self) -> u32 {
         match self.material {
             Material::Solid => 0,
@@ -125,7 +118,7 @@ impl Drawable {
             Shape::Rectangle { width, height } => {
                 InstanceData {
                     position: [self.x, self.y],
-                    scale: [width * self.scale_x, height * self.scale_y],
+                    size: [width * self.scale_x, height * self.scale_y],
                     rotation: self.rotation,
                     color: [
                         self.color.0 as f32 / 255.0,
@@ -133,8 +126,9 @@ impl Drawable {
                         self.color.2 as f32 / 255.0,
                         self.alpha as f32 / 255.0,
                     ],
-                    shape_type: self.shape_type(),
                     texture_index: self.texture_index(),
+                    instance_texture_uv_min: [0.0, 0.0],
+                    instance_texture_uv_max: [1.0, 1.0],
                 }
 
             },
@@ -143,7 +137,7 @@ impl Drawable {
                 let height = thickness;
                 InstanceData {
                     position: [self.x, self.y],
-                    scale: [width * self.scale_x, height * self.scale_y],
+                    size: [width * self.scale_x, height * self.scale_y],
                     rotation: self.rotation,
                     color: [
                         self.color.0 as f32 / 255.0,
@@ -151,8 +145,9 @@ impl Drawable {
                         self.color.2 as f32 / 255.0,
                         self.alpha as f32 / 255.0,
                     ],
-                    shape_type: self.shape_type(),
                     texture_index: self.texture_index(),
+                    instance_texture_uv_min: [0.0, 0.0],
+                    instance_texture_uv_max: [1.0, 1.0],
                 }
 
             }

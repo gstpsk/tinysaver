@@ -7,6 +7,7 @@ use crate::renderer::RenderContext;
 use crate::renderer::instance_data::{InstanceBatch, InstanceData};
 use crate::renderer::diffuse_texture;
 use crate::renderer::vertex2d::Vertex2D;
+use crate::utils;
 
 pub const MAX_TEXTURES: u32 = 8;
 pub const MAX_INSTANCES: u32 = 50000;
@@ -17,8 +18,8 @@ pub struct Renderer2D {
     pub sampler: wgpu::Sampler,
     pub texture_bind_group_layout: wgpu::BindGroupLayout,
     pub texture_bind_group: wgpu::BindGroup,
-    pub projection_matrix_buffer: wgpu::Buffer,
-    pub projection_bind_group: wgpu::BindGroup,
+    pub pixel_to_clip_buffer: wgpu::Buffer,
+    pub pixel_to_clip_bind_group: wgpu::BindGroup,
     render_pipeline_solid: wgpu::RenderPipeline,
     render_pipeline_textured: wgpu::RenderPipeline,
     pub quad_vertex_buffer: wgpu::Buffer,
@@ -27,50 +28,6 @@ pub struct Renderer2D {
 }
 
 impl Renderer2D {
-    // expects a single type of instances
-    pub fn render(&self, encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView, instance_batch: &InstanceBatch) {
-        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
-            label: Some("image renderer pass"),
-            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
-                view: target,
-                resolve_target: None,
-                ops: wgpu::Operations {
-                    load: wgpu::LoadOp::Load,
-                    store: wgpu::StoreOp::Store,
-                },
-                depth_slice: None,
-            })],
-            depth_stencil_attachment: None,
-            timestamp_writes: None,
-            occlusion_query_set: None,
-            multiview_mask: None,
-        });
-
-        render_pass.set_bind_group(0, &self.texture_bind_group, &[]);
-        render_pass.set_bind_group(1, &self.projection_bind_group, &[]);
-        // bind the quad vertex buffer
-        render_pass.set_vertex_buffer(0, self.quad_vertex_buffer.slice(..));
-        // bind the instance buffer
-        render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
-        render_pass.set_index_buffer(self.quad_index_buffer.slice(..), wgpu::IndexFormat::Uint16);
-
-        // solid
-
-        if !instance_batch.solid.is_empty() {
-            render_pass.set_pipeline(&self.render_pipeline_solid);
-            render_pass.draw_indexed(0..6, 0, 0..instance_batch.solid.len() as u32);
-
-        }       
-
-        if !instance_batch.textured.is_empty() {
-            let textured_start = instance_batch.solid.len() as u32;
-            let textured_end = textured_start + instance_batch.textured.len() as u32;
-            render_pass.set_pipeline(&self.render_pipeline_textured);
-            render_pass.draw_indexed(0..6, 0, textured_start..textured_end);
-        }
-
-    }
-
     pub fn add_texture_view(&mut self, device: &wgpu::Device, texture_view: wgpu::TextureView) -> u32 {
         if self.next_texture_slot as usize >= self.texture_views.len() {
             panic!("Ran out of texture slots!");
@@ -209,19 +166,31 @@ impl Renderer2D {
         })
     }
 
-    fn create_projection_bind_group_layout(ctx: &RenderContext) -> wgpu::BindGroupLayout {
-        let projection_matrix_binding_size = std::num::NonZeroU64::new(64); // 4x4 floats = 64 bytes
+    fn create_pixel_to_clip_buffer(ctx: &RenderContext) -> wgpu::Buffer {
+        let matrix = utils::pixel_to_clip_matrix(ctx.config.width, ctx.config.height);
+
+        ctx.device.create_buffer_init(
+            &wgpu::util::BufferInitDescriptor {
+                label: Some("initial transform buffer"),
+                contents: bytemuck::bytes_of(&matrix),
+                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
+            }
+        )
+    }
+
+    fn create_pixel_to_clip_bind_group_layout(ctx: &RenderContext) -> wgpu::BindGroupLayout {
+        let pixel_to_clip_binding_size = std::num::NonZeroU64::new(64); // 4x4 floats = 64 bytes
 
         ctx.device.create_bind_group_layout(&wgpu::BindGroupLayoutDescriptor {
-            label: Some("projection bind group layout"),
+            label: Some("pixel to clip bind group layout"),
             entries: &[
                 wgpu::BindGroupLayoutEntry {
-                    binding: 0,                                                             // projection matrix
+                    binding: 0,
                     visibility: wgpu::ShaderStages::VERTEX,
                     ty: wgpu::BindingType::Buffer {
                         ty: wgpu::BufferBindingType::Uniform,
                         has_dynamic_offset: false,
-                        min_binding_size: projection_matrix_binding_size
+                        min_binding_size: pixel_to_clip_binding_size
                     },
                     count: None,
                 },
@@ -229,27 +198,27 @@ impl Renderer2D {
             })
     }
 
-    fn create_projection_bind_group(
+    fn create_pixel_to_clip_bind_group(
         ctx: &RenderContext, 
         bind_group_layout: &wgpu::BindGroupLayout,
-        projection_matrix_buffer: &wgpu::Buffer
+        pixel_to_clip_buffer: &wgpu::Buffer
     ) -> wgpu::BindGroup {
         ctx.device.create_bind_group(&wgpu::BindGroupDescriptor {
-            label: Some("projection bind group"),
+            label: Some("pixel to clip bind group"),
             layout: bind_group_layout,
             entries: &[wgpu::BindGroupEntry {
                     binding: 0,
                     resource: wgpu::BindingResource::Buffer(
-                        projection_matrix_buffer.as_entire_buffer_binding(),
+                        pixel_to_clip_buffer.as_entire_buffer_binding(),
                     ),
                 }]
             })
     }
 
-    fn create_render_pipeline_layout(ctx: &RenderContext, texture_bind_group_layout: &wgpu::BindGroupLayout, projection_bind_group_layout: &wgpu::BindGroupLayout) -> wgpu::PipelineLayout {
+    fn create_render_pipeline_layout(ctx: &RenderContext, texture_bind_group_layout: &wgpu::BindGroupLayout, pixel_to_clip_bind_group_layout: &wgpu::BindGroupLayout) -> wgpu::PipelineLayout {
         ctx.device.create_pipeline_layout(&wgpu::PipelineLayoutDescriptor {
             label: Some("epic render pipeline layout"),
-            bind_group_layouts: &[Some(texture_bind_group_layout), Some(projection_bind_group_layout)],
+            bind_group_layouts: &[Some(texture_bind_group_layout), Some(pixel_to_clip_bind_group_layout)],
             immediate_size: 0,
         })
     }
@@ -291,10 +260,10 @@ impl Renderer2D {
 
     fn create_quad_vertices(ctx: &RenderContext) -> (wgpu::Buffer, wgpu::Buffer) {
         let vertices = [
-            Vertex2D { position: [0.0, 0.0], uv: [0.0, 0.0] },                       // top left
-            Vertex2D { position: [1.0, 0.0], uv: [1.0, 0.0] },              // top right
-            Vertex2D { position: [0.0, 1.0], uv: [0.0, 1.0] },             // bottom left
-            Vertex2D { position: [1.0, 1.0], uv: [1.0, 1.0] },    // bottom right
+            Vertex2D { position: [0.0, 0.0], uv: [0.0, 0.0] },  // top left
+            Vertex2D { position: [1.0, 0.0], uv: [1.0, 0.0] },  // top right
+            Vertex2D { position: [0.0, 1.0], uv: [0.0, 1.0] },  // bottom left
+            Vertex2D { position: [1.0, 1.0], uv: [1.0, 1.0] },  // bottom right
         ];
 
         let vertex_buffer = ctx.device.create_buffer_init(&wgpu::util::BufferInitDescriptor {
@@ -410,15 +379,14 @@ impl Renderer2D {
         let texture_bind_group_layout = Self::create_texture_bind_group_layout(ctx);
         let texture_bind_group = Self::create_texture_bind_group(ctx, &texture_bind_group_layout, &texture_refs, &sampler);
         
-        let projection_matrix_buffer = Self::create_projection_matrix_buffer(ctx);
-        let projection_bind_group_layout = Self::create_projection_bind_group_layout(ctx);
-        let projection_bind_group = Self::create_projection_bind_group(ctx, &projection_bind_group_layout, &projection_matrix_buffer);
+        let pixel_to_clip_buffer = Self::create_pixel_to_clip_buffer(ctx);
+        let pixel_to_clip_bind_group_layout = Self::create_pixel_to_clip_bind_group_layout(ctx);
+        let pixel_to_clip_bind_group = Self::create_pixel_to_clip_bind_group(ctx, &pixel_to_clip_bind_group_layout, &pixel_to_clip_buffer);
                 
-        let render_pipeline_layout = Self::create_render_pipeline_layout(ctx, &texture_bind_group_layout, &projection_bind_group_layout);
+        let render_pipeline_layout = Self::create_render_pipeline_layout(ctx, &texture_bind_group_layout, &pixel_to_clip_bind_group_layout);
         
         let render_pipeline_solid = Self::create_render_pipeline(ctx, &render_pipeline_layout, &shader, "fs_solid");
         let render_pipeline_textured = Self::create_render_pipeline(ctx, &render_pipeline_layout, &shader, "fs_textured");
-
         let (quad_vertex_buffer, quad_index_buffer) = Self::create_quad_vertices(ctx);
 
         let max_instances = MAX_INSTANCES as usize;
@@ -436,8 +404,8 @@ impl Renderer2D {
             sampler,
             texture_bind_group_layout,
             texture_bind_group,
-            projection_matrix_buffer,
-            projection_bind_group,
+            pixel_to_clip_buffer,
+            pixel_to_clip_bind_group,
             render_pipeline_solid,
             render_pipeline_textured,
             quad_vertex_buffer,
@@ -446,46 +414,57 @@ impl Renderer2D {
         }
     }
 
-    fn create_projection_matrix_buffer(ctx: &RenderContext) -> wgpu::Buffer {
-        let w = ctx.config.width as f32;
-        let h = ctx.config.height as f32;
-        
-        let projection_matrix: [[f32; 4]; 4] = [
-            // column 0
-            [ 2.0 / w, 0.0,      0.0, 0.0 ],
-            // column 1
-            [ 0.0,    -2.0 / h,  0.0, 0.0 ],
-            // column 2
-            [ 0.0,     0.0,      1.0, 0.0 ],
-            // column 3
-            [ -1.0,    1.0,      0.0, 1.0 ],
-        ];
+        // expects a single type of instances
+    pub fn render(&self, encoder: &mut wgpu::CommandEncoder, target: &wgpu::TextureView, instance_batch: &InstanceBatch) {
+        let mut render_pass = encoder.begin_render_pass(&wgpu::RenderPassDescriptor {
+            label: Some("image renderer pass"),
+            color_attachments: &[Some(wgpu::RenderPassColorAttachment {
+                view: target,
+                resolve_target: None,
+                ops: wgpu::Operations {
+                    load: wgpu::LoadOp::Load,
+                    store: wgpu::StoreOp::Store,
+                },
+                depth_slice: None,
+            })],
+            depth_stencil_attachment: None,
+            timestamp_writes: None,
+            occlusion_query_set: None,
+            multiview_mask: None,
+        });
 
+        render_pass.set_bind_group(0, &self.texture_bind_group, &[]);
+        render_pass.set_bind_group(1, &self.pixel_to_clip_bind_group, &[]);
+        // bind the quad vertex buffer
+        render_pass.set_vertex_buffer(0, self.quad_vertex_buffer.slice(..));
+        // bind the instance buffer
+        render_pass.set_vertex_buffer(1, self.instance_buffer.slice(..));
+        render_pass.set_index_buffer(self.quad_index_buffer.slice(..), wgpu::IndexFormat::Uint16);
 
-        ctx.device.create_buffer_init(
-            &wgpu::util::BufferInitDescriptor {
-                label: Some("initial transform buffer"),
-                contents: bytemuck::bytes_of(&projection_matrix),
-                usage: wgpu::BufferUsages::UNIFORM | wgpu::BufferUsages::COPY_DST,
-            }
-        )
+        // solid
+
+        if !instance_batch.solid.is_empty() {
+            render_pass.set_pipeline(&self.render_pipeline_solid);
+            render_pass.draw_indexed(0..6, 0, 0..instance_batch.solid.len() as u32);
+
+        }       
+
+        if !instance_batch.textured.is_empty() {
+            let textured_start = instance_batch.solid.len() as u32;
+            let textured_end = textured_start + instance_batch.textured.len() as u32;
+            render_pass.set_pipeline(&self.render_pipeline_textured);
+            render_pass.draw_indexed(0..6, 0, textured_start..textured_end);
+        }
+
     }
 
-    pub fn update_projection_matrix_buffer(&self, ctx: &RenderContext) {
-        let w = ctx.config.width as f32;
-        let h = ctx.config.height as f32;
-
-        let projection_matrix: [[f32; 4]; 4] = [
-            [ 2.0 / w, 0.0,      0.0, 0.0 ],
-            [ 0.0,    -2.0 / h,  0.0, 0.0 ],
-            [ 0.0,     0.0,      1.0, 0.0 ],
-            [ -1.0,    1.0,      0.0, 1.0 ],
-        ];
+    pub fn update_pixel_to_clip_buffer(&self, ctx: &RenderContext) {
+        let matrix = utils::pixel_to_clip_matrix(ctx.config.width, ctx.config.height);
 
         ctx.queue.write_buffer(
-            &self.projection_matrix_buffer,
+            &self.pixel_to_clip_buffer,
             0,
-            bytemuck::bytes_of(&projection_matrix),
+            bytemuck::bytes_of(&matrix),
         );
     }
 }

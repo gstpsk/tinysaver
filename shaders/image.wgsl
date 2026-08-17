@@ -2,85 +2,90 @@
 var textures: binding_array<texture_2d<f32>>;
 
 @group(0) @binding(1)
-var image_sampler: sampler;
-
-// used to convert pixel coordinates
-// to clip space coordinates
-struct Projection {
-    matrix: mat4x4<f32>
-};
+var texture_sampler: sampler;
 
 @group(1) @binding(0)
-var<uniform> projection: Projection;
+var<uniform> pixel_to_clip: mat4x4<f32>;
 
-// passed by the vertex shader to the rasterizer
-// which then passes it on to the fragment shader.
-// important to understand is that it is not really
-// returned by the vertex shader in the common sense
-// pos is used by the rasterizer to place the triangle
-// uv is interpolated for each pixel before being passed
-// to the fragment shader.
 struct VsOut {
-    @builtin(position) vertex_position: vec4<f32>,  // clip space position of the vertex
-    @location(0) vertex_uv: vec2<f32>,              // interpolated value of where in the texture the pixel data should come from (texture coordinate): (0, 0) is top left
-    @location(5) instance_color: vec4<f32>,         // pass the color on to the fragment shader as well
-    @location(7) instance_texture_index: u32     
+    @builtin(position) vertex_position: vec4<f32>,      // clip space position of the vertex
+
+    @location(0) quad_uv: vec2<f32>,
+    @location(1) instance_color: vec4<f32>,
+    @location(2) instance_texture_index: u32,
+    @location(3) instance_texture_uv_min: vec2<f32>,
+    @location(4) instance_texture_uv_max: vec2<f32>,
 };
+
+struct FsIn {
+    @builtin(position) fragment_position: vec4<f32>,    // clip space position of the fragment
+
+    @location(0) quad_uv: vec2<f32>,                    // interpolated value of where on the quad we are located
+    @location(1) instance_color: vec4<f32>,
+    @location(2) instance_texture_index: u32,
+    @location(3) instance_texture_uv_min: vec2<f32>,    // fixed value of where on the texture we need to start sampling
+    @location(4) instance_texture_uv_max: vec2<f32>,    // fixed value of where on the texture we need to stop sampling
+}
 
 @vertex
 fn vs_main(
     // quad vertex buffer
-    @location(0) in_position: vec2<f32>, 
-    @location(1) in_uv: vec2<f32>,
+    @location(0) local_position: vec2<f32>,             // position of the quad vertices in local space, so (1, 0) for the top right corner
+    @location(1) quad_uv: vec2<f32>,                    // position on the quad itself, so (0.5, 0.5) is on the center of the quad.
     // instance vertex buffer
-    @location(2) instance_position: vec2<f32>,
-    @location(3) instance_scale: vec2<f32>,
-    @location(4) instance_rotation: f32,
-    @location(5) instance_color: vec4<f32>,
-    @location(6) instance_shape_type: u32,
-    @location(7) instance_texture_index: u32,
+    @location(2) instance_position: vec2<f32>,          // position of the instance's top left corner in screen space
+    @location(3) instance_size: vec2<f32>,              // width and height of the instance in pixels
+    @location(4) instance_rotation: f32,                // rotation of the quad in radians
+    @location(5) instance_color: vec4<f32>,             // RGBA color/tint of the instance, normalized to 0..1
+    @location(6) instance_texture_index: u32,           // index of the texture to sample from textures[]
+    @location(7) instance_texture_uv_min: vec2<f32>,    // starting position on the texture, where on the texture should the sampler start sampling?
+    @location(8) instance_texture_uv_max: vec2<f32>,    // ending position on the texture, where on the texture should the sampler stop sampling?
 ) -> VsOut {
-    // define return struct
-    // prevents wgsl-analyzer from complaining...
     var out: VsOut;
-
-    // apply scaling
-    let pos = in_position * instance_scale;
-
-    // apply rotation
-    let s = sin(instance_rotation);
-    let c = cos(instance_rotation);
-    let rotated = vec2<f32>(
-        pos.x * c - pos.y * s,
-        pos.x * s + pos.y * c
+    
+    // construct matrix to apply rotation
+    let rotation_matrix = mat2x2<f32>(
+        cos(instance_rotation),  sin(instance_rotation),
+       -sin(instance_rotation),  cos(instance_rotation)
     );
 
-    // apply translation
-    let new_position = rotated + instance_position;
-    
-    // now we use the projection matrix to convert from pixel to clip space
-    let clip_space_position = projection.matrix * vec4<f32>(new_position, 0.0, 1.0);
+    // scale the local vertex, rotate it around the origin,
+    // then move it to the instance's screen position
+    let screen_position = instance_position + rotation_matrix * (local_position * instance_size);
+
+    // now we use a matrix to convert from screen space to clip space (2560, 1440) -> (1, -1)
+    let clip_space_position = pixel_to_clip * vec4<f32>(screen_position, 0.0, 1.0);
 
     out.vertex_position = clip_space_position;
-    out.vertex_uv = in_uv;
+    out.quad_uv = quad_uv;
     out.instance_color = instance_color;
     out.instance_texture_index = instance_texture_index;
+    out.instance_texture_uv_min = instance_texture_uv_min;
+    out.instance_texture_uv_max = instance_texture_uv_max;
 
     return out;
 }
 
-// the fragment shader is called thousands of times in parallel
-// for each pixel / fragment inside the triangles drawn by the rasterizer
-// input: the texture coordinate of the pixel to be drawn
-// output: an vertex containing the final rgba data drawn to the screen 
 @fragment
-fn fs_textured(@location(0) in_uv: vec2<f32>, @location(5) instance_color: vec4<f32>, @location(7) instance_texture_index: u32) -> @location(0) vec4<f32> {
-    let fragment = textureSample(textures[instance_texture_index], image_sampler, in_uv);
-    let tinted_fragment = fragment * instance_color;
-    return tinted_fragment;
+fn fs_textured(in: FsIn) -> @location(0) vec4<f32> {
+    // mix is a function that linearly interpolates between two values
+    // basically, given min_uv and max_uv, give me a point in between based on quad_uv, which tells us where in the quad we are
+    let texture_uv = mix(
+        in.instance_texture_uv_min,
+        in.instance_texture_uv_max,
+        in.quad_uv
+    );
+
+    let fragment = textureSample(
+        textures[in.instance_texture_index],
+        texture_sampler,
+        texture_uv
+    );
+
+    return fragment * in.instance_color;
 }
 
 @fragment
-fn fs_solid(@location(5) instance_color: vec4<f32>) -> @location(0) vec4<f32> {
-    return instance_color;
+fn fs_solid(in: FsIn) -> @location(0) vec4<f32> {
+    return in.instance_color;
 }
