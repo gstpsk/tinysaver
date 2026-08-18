@@ -10,11 +10,20 @@ pub enum Color {
 }
 
 impl Color {
-    pub fn random() -> Color { // todo
-        Color::Purple
+    pub fn random() -> Color {
+        match rand::random_range(0..7) {
+            0 => Color::Red,
+            1 => Color::Green,
+            2 => Color::Blue,
+            3 => Color::Yellow,
+            4 => Color::Cyan,
+            5 => Color::Purple,
+            6 => Color::White,
+            _ => Color::White,
+        }
     }
 
-    pub fn rgb(self) -> (u8, u8, u8) {
+    pub fn to_rgb(self) -> (u8, u8, u8) {
         match self {
             Color::Red    => (255,   0,   0),
             Color::Green  => (  0, 255,   0),
@@ -27,7 +36,7 @@ impl Color {
     }
 
     pub fn to_rgba_array(self) -> [f32; 4] {
-        let (r, g, b) = self.rgb();
+        let (r, g, b) = self.to_rgb();
 
         [
             r as f32 / 255.0,

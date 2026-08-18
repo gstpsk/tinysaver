@@ -1,10 +1,9 @@
 use image::GenericImageView;
 
-// returns a random valid (x, y) pair
-pub fn get_random_position(max_x: u32, max_y: u32) -> (u32, u32) {
-    // use u32 to ensure non-negative numbers
-    let x = rand::random::<u32>() % max_x;
-    let y = rand::random::<u32>() % max_y;
+// returns a random (x, y) pair within the given range
+pub fn get_random_position(min_x: u32, max_x: u32, min_y: u32, max_y: u32) -> (u32, u32) {
+    let x = rand::random_range(min_x..max_x);
+    let y = rand::random_range(min_y..max_y);
     (x, y)
 }
 

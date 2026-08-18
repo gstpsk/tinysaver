@@ -196,7 +196,7 @@ impl Renderer3D {
     }
 
     pub fn load_textures(ctx: &RenderContext) -> wgpu::TextureView {
-        let image = image::open("animal.jpg").expect("Failed to load image");
+        let image = image::open("fire.jpg").expect("Failed to load image");
         let diffuse_texture = diffuse_texture::create_diffuse_texture(ctx, Some("epic texture"), image);
         //let diffuse_texture = diffuse_texture::create_dummy_texture(ctx);
         let diffuse_texture_view = diffuse_texture.create_view(&wgpu::TextureViewDescriptor::default());

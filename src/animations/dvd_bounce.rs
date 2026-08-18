@@ -35,7 +35,7 @@ impl DvdBounceAnimation {
         let texture_view = texture.create_view(&wgpu::TextureViewDescriptor::default());
 
         let shape = Shape::Rectangle { width: image_width as f32, height: image_height as f32 };
-        let (x, y) = utils::get_random_position(ctx.config.width - image_width, ctx.config.height - image_height);
+        let (x, y) = utils::get_random_position(0, ctx.config.width - image_width, 0, ctx.config.height - image_height);
 
         let current_color = Color::random();
         
@@ -43,7 +43,7 @@ impl DvdBounceAnimation {
             texture_index: renderer.add_texture_view(&ctx.device, texture_view)
         };
         
-        let drawable = Drawable::new(shape, x as f32, y as f32, current_color.rgb(), 255, material);
+        let drawable = Drawable::new(shape, x as f32, y as f32, current_color.to_rgb(), 255, material);
 
         let speed_x = 1.0;
         let speed_y = 1.0;
@@ -83,7 +83,7 @@ impl DvdBounceAnimation {
         // fix overshoot and bounce
         if self.handle_collision(ctx) {
             self.current_color = self.current_color.next();
-            self.drawable.set_color(self.current_color.rgb());
+            self.drawable.set_color(self.current_color.to_rgb());
         }
     }
 

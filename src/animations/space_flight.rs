@@ -3,6 +3,9 @@ use wgpu;
 use crate::{animation::Animation, drawable::{Drawable, Material, Shape}, renderer::RenderContext, utils};
 use crate::renderer::{Renderer2D, InstanceBatch};
 
+const NUMBER_OF_STARS: u32 = 5000;
+const STAR_SPEED: f32 = 0.25;
+
 struct Star {
     shape: Drawable,
     z: f32, // 0.0 close, 1.0 is far
@@ -24,8 +27,8 @@ impl SpaceFlightAnimation {
             height: 1.0,
         };
 
-        for _ in 0..50000 {
-            let (x, y) = utils::get_random_position(ctx.config.width - rect.width() as u32, ctx.config.height - rect.height() as u32);
+        for _ in 0..NUMBER_OF_STARS {
+            let (x, y) = utils::get_random_position(0, ctx.config.width - rect.width() as u32, 0, ctx.config.height - rect.height() as u32);
             
             let z = 1.0 - (rand::random::<f32>() % 0.95);
 
@@ -89,7 +92,7 @@ impl SpaceFlightAnimation {
             let dir_y = dy / len;
 
             // move outward
-            let speed = 1.0 / star.z;
+            let speed = STAR_SPEED / star.z;
             star.shape.x += dir_x * speed;
             star.shape.y += dir_y * speed;
 
@@ -98,7 +101,9 @@ impl SpaceFlightAnimation {
             star.shape.y < 0.0 || star.shape.y > ctx.config.height as f32 {
 
                 let (rx, ry) = utils::get_random_position(
+                    0,
                     ctx.config.width,
+                    0,
                     ctx.config.height
                 );
 
