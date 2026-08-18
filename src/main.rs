@@ -8,7 +8,7 @@ use winit::keyboard::Key;
 use winit::window::{Fullscreen, Window, WindowAttributes, WindowId};
 
 use crate::animation::Animation;
-use crate::animations::{DvdBounceAnimation, RotatingCubeAnimation, SpaceFlightAnimation, WireframeAnimation};
+use crate::animations::{CurvesAnimation, DvdBounceAnimation, RotatingCubeAnimation, SpaceFlightAnimation, WireframeAnimation};
 use crate::renderer::RenderContext;
 use crate::utils::load_image_rgba8;
 
@@ -25,6 +25,7 @@ enum AnimationType {
     Space,
     Wireframe,
     RotatingCube,
+    Curves
 }
 
 impl AnimationType {
@@ -34,6 +35,7 @@ impl AnimationType {
             "space" => Some(Self::Space),
             "wireframe" => Some(Self::Wireframe),
             "rotating-cube" => Some(Self::RotatingCube),
+            "curves" => Some(Self::Curves),
             _ => None,
         }
     }
@@ -113,6 +115,9 @@ impl ApplicationHandler for App {
                 &ctx
             )),
             AnimationType::RotatingCube => Box::new(RotatingCubeAnimation::new(
+                &ctx
+            )),
+            AnimationType::Curves => Box::new(CurvesAnimation::new(
                 &ctx
             ))
         };
